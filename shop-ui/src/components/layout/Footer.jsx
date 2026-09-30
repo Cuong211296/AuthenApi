@@ -36,7 +36,7 @@ export default function Footer() {
             <ul>
               <li>339 Lê Văn Sỹ, Quận 3, TP Hồ Chí Minh</li>
               <li>Hotline 1900 0000 (8:00 – 21:00)</li>
-              <li>hotro@maisonmoc.vn</li>
+              <li>hotro@quinibear.vn</li>
             </ul>
           </div>
         </div>
