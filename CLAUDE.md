@@ -1,0 +1,194 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is **identify-service**, a Spring Boot 3.2.3 REST API for authentication and authorization. It manages user authentication via JWT tokens, role-based access control (RBAC), and token lifecycle (generation, refresh, invalidation).
+
+**Key Tech Stack:**
+- Java 17 (pom `java.version`; Maven runs on JDK 17) with Spring Boot 3.2.3
+- Spring Security with OAuth2 Resource Server
+- JWT (Nimbus JOSE JWT with HMAC512 signing)
+- MySQL with JPA/Hibernate (with `ddl-auto: update`)
+- MapStruct for DTO/entity mapping, Lombok for boilerplate reduction
+
+## Common Commands
+
+### Build
+```bash
+# Build the project
+mvn clean package
+
+# Build without running tests
+mvn clean package -DskipTests
+```
+
+### Run
+```bash
+# Run the application locally
+mvn spring-boot:run
+
+# Application runs on port 8081 with context path /identity
+# Base URL: http://localhost:8081/identity
+```
+
+### Testing
+```bash
+# Run all tests
+mvn test
+
+# Run a specific test class
+mvn test -Dtest=ClassName
+
+# Run a specific test method
+mvn test -Dtest=ClassName#methodName
+```
+
+### Database
+The application uses MySQL with Hibernate auto-update (`ddl-auto: update`). Ensure MySQL is running on localhost:3306 with:
+- Database: `identity_service`
+- Username: `root`
+- Password: `root`
+
+(See `src/main/resources/application.yaml` for configuration)
+
+## Database Workflow
+
+Claude accesses MySQL through the project-scoped MCP server `identity-db` ([.mcp.json](.mcp.json) -> [scripts/mcp_mysql.py](scripts/mcp_mysql.py)), which reads credentials from `.env` (never hardcode them). Requires `pip install mysql-mcp-server` and a Claude Code restart to load.
+
+When a feature changes entities or schema:
+1. Inspect the real schema first (MCP, or `python scripts/dbtool.py`), do not assume Hibernate applied it. `ddl-auto: update` logs DDL failures and keeps starting, and it cannot change primary keys, column types, or backfill existing rows.
+2. Take a backup: `python scripts/dbtool.py backup` (writes gitignored `backups/`).
+3. Write a plain-MySQL migration SQL file and run it with `python scripts/dbtool.py run <file>`. Existing rows must be backfilled (new NOT NULL columns need a DEFAULT).
+4. Start the app and confirm no `Error executing DDL` in the log, then exercise the affected endpoint.
+
+If `mvn spring-boot:run` fails with `UnsupportedClassVersionError ... 65.0`, `target/` holds classes built by an IDE with JDK 21: run `mvn clean compile`.
+
+## Architecture Overview
+
+### Layer Structure
+```
+controller          → HTTP endpoints, request/response handling
+  ↓
+service             → Business logic, authentication, authorization
+  ↓
+repository          → Data persistence (JPA)
+  ↓
+entity              → Domain models mapped to database
+```
+
+### Key Components
+
+**Authentication & Security:**
+- `AuthenticationService`: Core JWT logic — token generation (HMAC512), verification, refresh, logout
+  - `generateToken()`: Creates JWT with user roles/permissions in scope claim
+  - `verifyToken()`: Validates signature, expiration, and blacklist status
+  - `logout()`: Adds token to blacklist (InvalidatedToken) by JTI (JWT ID)
+  - `refreshToken()`: Invalidates old token, issues new one with same user
+
+- `SecurityConfig`: Spring Security configuration
+  - OAuth2 Resource Server with custom JWT decoder
+  - Public endpoints: `/auth/token`, `/auth/introspect`, `/auth/logout`, `/auth/refresh`, `/users` (POST only)
+  - Protected endpoints: All others require valid JWT
+  - Method-level security enabled (`@PreAuthorize`, `@Secured`)
+
+- `CustomJwtDecoder`: Custom decoder for JWT validation via configured signerKey
+
+**Controllers (all under `/identity` context path):**
+- `AuthenticationController`: `/auth/token` (authenticate), `/auth/introspect`, `/auth/logout`, `/auth/refresh`
+- `UserController`: User CRUD operations
+- `RoleController`: Role management
+- `PermissionController`: Permission management
+
+**Data Model:**
+- `User`: Username, password (BCrypt), roles (many-to-many)
+- `Role`: Name, permissions (many-to-many)
+- `Permission`: Name
+- `InvalidatedToken`: Blacklist of logout/refreshed tokens (JTI + expiry time)
+
+**Error Handling:**
+- `GlobalExceptionHandler`: Maps domain exceptions to HTTP responses
+- `AppException`: Custom runtime exception with `ErrorCode` enum
+- Common codes: `USER_NOT_EXISTED`, `UNAUTHENTICATED`, `UNAUTHORIZED`
+
+### JWT Token Structure
+- **Algorithm:** HMAC512 (HS512)
+- **Signer Key:** Configured in `application.yaml` (`jwt.signerKey`)
+- **Claims:**
+  - `sub`: username
+  - `iss`: "CuongBackend"
+  - `iat`: issue time
+  - `exp`: expiration (1 hour from issue)
+  - `jti`: unique token ID (for blacklisting)
+  - `scope`: roles and permissions (space-separated, e.g., "ROLE_ADMIN PERMISSION_READ")
+
+### Important Notes
+
+**Password Encoding:**
+- Uses BCrypt with strength 10 (not configurable; new BCryptPasswordEncoder(10) created in AuthenticationService and SecurityConfig)
+
+**Token Blacklist:**
+- Logout and refresh store tokens in `InvalidatedToken` table by JTI
+- `verifyToken()` checks blacklist before validating; expired tokens don't need to be in blacklist
+
+**Scope Mapping:**
+- Roles prefixed with `ROLE_` (e.g., user.getRoles() → "ROLE_ADMIN")
+- Permission names added as-is (flat list in scope claim)
+- Used by `JwtGrantedAuthoritiesConverter` (no prefix) to populate Spring Security authorities
+
+**Configuration File:**
+- `src/main/resources/application.yaml` contains DB connection, JWT signer key, and port
+- Database configured for auto-update schema; in production, switch to `validate` or use migrations
+
+## Testing Tips
+
+- Mock repositories in unit tests; use `@DataJpaTest` for persistence tests
+- Tests inherit from Spring Boot test base; see `IdentifyServiceApplicationTests`
+- JWT-protected endpoints require valid tokens in `Authorization: Bearer <token>` header
+
+## Frontend UI - Modern Login & Dashboard
+
+A beautiful, responsive web UI for authentication built with vanilla HTML5/CSS3/JavaScript (no build step required).
+
+**Files:**
+- [login.html](login.html) - Modern login page with gradient design, real-time validation, password toggle, remember username
+- [dashboard.html](dashboard.html) - User dashboard showing JWT token, user info, roles/permissions, token refresh/invalidation
+
+**Features:**
+- 🎨 Modern gradient UI with smooth animations
+- 📱 Fully responsive (mobile, tablet, desktop)
+- ✅ Real-time form validation (3+ char username, 8+ char password)
+- 🔐 Password visibility toggle, remember-me checkbox
+- 🚀 Error/success alert notifications
+- 📋 Token display with copy-to-clipboard functionality
+- 🔄 Token refresh without re-authentication
+- 👤 Displays user roles and permissions from JWT scope
+- 🚪 Safe logout with token invalidation
+
+**How to Use:**
+
+1. Start the API server:
+   ```bash
+   mvn spring-boot:run
+   ```
+
+2. Open `login.html` in your browser:
+   - Use Live Server in VSCode, or
+   - Open file directly in browser (file:// protocol)
+
+3. Enter credentials and click "Đăng nhập"
+4. On successful login, you'll be redirected to `dashboard.html`
+5. Dashboard shows your JWT token, can copy/refresh it, or logout
+
+**API Integration:**
+- Communicates with `/identity/auth/token`, `/identity/auth/refresh`, `/identity/auth/logout`, `/identity/users/{userId}`
+- JWT stored in `localStorage` under key `auth_token`
+- Authorization header: `Bearer {token}`
+
+**For Production:**
+- Add CORS headers to backend (currently allowing localhost)
+- Store JWT in httpOnly cookies instead of localStorage for XSS protection
+- Add HTTPS and Content-Security-Policy headers
+- Implement proper error handling for token expiration (redirect to login)
+

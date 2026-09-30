@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Backend Connection</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .test-section:last-child {
+            border-bottom: none;
+        }
+
+        .test-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .test-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .test-status.loading {
+            background: #ffc107;
+            animation: pulse 1s infinite;
+        }
+
+        .test-status.success {
+            background: #28a745;
+        }
+
+        .test-status.error {
+            background: #dc3545;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .test-result {
+            background: #f9f9f9;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .test-result.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 4px solid #28a745;
+        }
+
+        .test-result.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #dc3545;
+        }
+
+        .test-result.warning {
+            background: #fff3e0;
+            color: #e65100;
+            border-left: 4px solid #ffc107;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .info-box strong {
+            color: #1565c0;
+        }
+
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+
+        .checklist li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+            font-size: 14px;
+        }
+
+        .checklist li:before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .checklist li.pending:before {
+            content: '○';
+            color: #ffc107;
+        }
+
+        .checklist li.error:before {
+            content: '✗';
+            color: #dc3545;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .endpoint-list {
+            margin-top: 15px;
+        }
+
+        .endpoint {
+            padding: 10px;
+            background: #f5f5f5;
+            border-left: 3px solid #667eea;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .endpoint .method {
+            font-weight: 600;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Backend Connection Test</h1>
+
+        <div class="info-box">
+            <strong>ℹ️ Note:</strong> This page tests if your frontend can connect to the Spring Boot backend.
+            Make sure the backend is running on <code>http://localhost:8081/identity</code>
+        </div>
+
+        <!-- Checklist -->
+        <div class="test-section">
+            <h2 style="font-size: 16px; margin-bottom: 15px;">📋 Pre-flight Checklist</h2>
+            <ul class="checklist" id="checklist">
+                <li class="pending">Backend running on port 8081</li>
+                <li class="pending">MySQL running on localhost:3306</li>
+                <li class="pending">CORS configured correctly</li>
+                <li class="pending">No firewall blocking localhost:8081</li>
+            </ul>
+        </div>
+
+        <!-- Test 1: Backend Health -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="test-status loading" id="test1-status"></span>
+                Test 1: Backend Health Check
+            </div>
+            <button onclick="testHealthCheck()">Run Test</button>
+            <div class="test-result" id="test1-result" style="display:none;"></div>
+        </div>
+
+        <!-- Test 2: CORS Preflight -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="test-status loading" id="test2-status"></span>
+                Test 2: CORS Preflight
+            </div>
+            <button onclick="testCORSPreflight()">Run Test</button>
+            <div class="test-result" id="test2-result" style="display:none;"></div>
+        </div>
+
+        <!-- Test 3: API Endpoints -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="test-status" id="test3-status"></span>
+                Test 3: Available API Endpoints
+            </div>
+            <div class="endpoint-list">
+                <div class="endpoint">
+                    <span class="method">POST</span> /auth/token - Login (public)
+                </div>
+                <div class="endpoint">
+                    <span class="method">POST</span> /auth/refresh - Refresh token (public)
+                </div>
+                <div class="endpoint">
+                    <span class="method">POST</span> /auth/logout - Logout (public)
+                </div>
+                <div class="endpoint">
+                    <span class="method">POST</span> /auth/introspect - Check token (public)
+                </div>
+                <div class="endpoint">
+                    <span class="method">GET</span> /users/{userId} - Get user (protected)
+                </div>
+            </div>
+        </div>
+
+        <!-- Test 4: Login Test -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="test-status" id="test4-status"></span>
+                Test 4: Login Test
+            </div>
+            <table>
+                <tr>
+                    <td style="width: 150px;">Username:</td>
+                    <td><input type="text" id="testUsername" placeholder="Enter username" style="width: 200px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></td>
+                </tr>
+                <tr>
+                    <td>Password:</td>
+                    <td><input type="password" id="testPassword" placeholder="Enter password" style="width: 200px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></td>
+                </tr>
+            </table>
+            <button onclick="testLogin()" style="margin-top: 15px;">Test Login</button>
+            <div class="test-result" id="test4-result" style="display:none;"></div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="test-section">
+            <h2 style="font-size: 16px; margin-bottom: 15px;">🐛 Troubleshooting</h2>
+            <ul class="checklist">
+                <li><strong>CORS error:</strong> Backend not configured for CORS. Fix: Restart backend with CORS config.</li>
+                <li><strong>Cannot reach server:</strong> Backend not running. Run: <code>mvn spring-boot:run</code></li>
+                <li><strong>Connection timeout:</strong> Check if port 8081 is blocked by firewall</li>
+                <li><strong>Login fails:</strong> User doesn't exist. Create user first via API or database</li>
+                <li><strong>Invalid token:</strong> Token expired or corrupted. Try logging in again</li>
+            </ul>
+        </div>
+
+        <!-- Config Info -->
+        <div class="test-section">
+            <h2 style="font-size: 16px; margin-bottom: 15px;">⚙️ Configuration</h2>
+            <table>
+                <tr>
+                    <th>Setting</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Backend URL</td>
+                    <td><code>http://localhost:8081/identity</code></td>
+                </tr>
+                <tr>
+                    <td>Database</td>
+                    <td><code>localhost:3306/identity_service</code></td>
+                </tr>
+                <tr>
+                    <td>DB User</td>
+                    <td><code>root</code></td>
+                </tr>
+                <tr>
+                    <td>DB Password</td>
+                    <td><code>root</code></td>
+                </tr>
+                <tr>
+                    <td>CORS Origins</td>
+                    <td>localhost:3000, localhost:5500, localhost:8000</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/identity';
+
+        function updateStatus(testNum, status) {
+            const statusEl = document.getElementById(`test${testNum}-status`);
+            statusEl.className = `test-status ${status}`;
+        }
+
+        function showResult(testNum, message, isSuccess) {
+            const resultEl = document.getElementById(`test${testNum}-result`);
+            resultEl.className = `test-result ${isSuccess ? 'success' : 'error'}`;
+            resultEl.textContent = message;
+            resultEl.style.display = 'block';
+            updateStatus(testNum, isSuccess ? 'success' : 'error');
+        }
+
+        async function testHealthCheck() {
+            updateStatus(1, 'loading');
+            try {
+                const response = await axios.get(`${API_BASE}/auth/token`, {
+                    timeout: 5000,
+                    validateStatus: () => true
+                });
+                showResult(1, `✓ Backend is running!\nStatus: ${response.status}\nServer: Spring Boot 3.2.3`, true);
+            } catch (error) {
+                const msg = error.message.includes('timeout')
+                    ? 'Connection timeout. Backend not responding.'
+                    : error.message || 'Cannot reach backend. Is it running on port 8081?';
+                showResult(1, `✗ Error: ${msg}\n\nFix: Run "mvn spring-boot:run" in project directory`, false);
+            }
+        }
+
+        async function testCORSPreflight() {
+            updateStatus(2, 'loading');
+            try {
+                const response = await axios.options(`${API_BASE}/auth/token`, {
+                    timeout: 5000
+                });
+                showResult(2, `✓ CORS is configured correctly!\nHeaders received:\n${JSON.stringify(response.headers, null, 2)}`, true);
+            } catch (error) {
+                if (error.message.includes('Network Error') || error.message.includes('timeout')) {
+                    showResult(2, `⚠ CORS preflight may not be configured.\n\nMake sure SecurityConfig has corsConfigurationSource() bean configured.`, false);
+                } else {
+                    showResult(2, `✗ CORS Test Failed: ${error.message}`, false);
+                }
+            }
+        }
+
+        async function testLogin() {
+            const username = document.getElementById('testUsername').value.trim();
+            const password = document.getElementById('testPassword').value.trim();
+
+            if (!username || !password) {
+                showResult(4, '✗ Please enter username and password', false);
+                return;
+            }
+
+            updateStatus(4, 'loading');
+            try {
+                const response = await axios.post(`${API_BASE}/auth/token`, {
+                    username,
+                    password
+                }, { timeout: 5000 });
+
+                const token = response.data.result.token;
+                showResult(4, `✓ Login successful!\n\nToken:\n${token}\n\n✓ You can now use this token to access protected endpoints.`, true);
+            } catch (error) {
+                let msg = '✗ Login failed';
+                if (error.response) {
+                    msg += `\nStatus: ${error.response.status}`;
+                    msg += `\nError: ${error.response.data.message || 'Unknown error'}`;
+                } else if (error.message.includes('Network Error')) {
+                    msg += '\n\nNetwork Error: Cannot reach backend. Make sure it\'s running on port 8081.';
+                } else {
+                    msg += `\n\nError: ${error.message}`;
+                }
+                showResult(4, msg, false);
+            }
+        }
+
+        // Auto-run health check on page load
+        window.addEventListener('load', () => {
+            testHealthCheck();
+            testCORSPreflight();
+        });
+    </script>
+</body>
+</html>

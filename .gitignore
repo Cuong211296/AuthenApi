@@ -31,3 +31,35 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+### Application Secrets ###
+application-secrets.properties
+application-prod.yaml
+application-dev.yaml
+
+### IDE ###
+*.swp
+*.swo
+*~
+.DS_Store
+
+### Logs ###
+*.log
+logs/
+
+### Temporary Files ###
+*.tmp
+temp/
+*.bak
+
+### DB backups (contain password hashes) ###
+backups/
+
+__pycache__/

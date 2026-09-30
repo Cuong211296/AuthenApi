@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "identity-db": {
+      "command": "python",
+      "args": ["scripts/mcp_mysql.py"]
+    }
+  }
+}
