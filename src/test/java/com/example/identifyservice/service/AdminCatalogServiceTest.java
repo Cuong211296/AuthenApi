@@ -1,0 +1,92 @@
+package com.example.identifyservice.service;
+
+import com.example.identifyservice.dto.request.CategoryRequest;
+import com.example.identifyservice.dto.request.ProductRequest;
+import com.example.identifyservice.dto.request.VariantRequest;
+import com.example.identifyservice.dto.response.ProductSummaryResponse;
+import com.example.identifyservice.exception.AppException;
+import com.example.identifyservice.exception.ErrorCode;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@SpringBootTest
+@ActiveProfiles("test")
+@Transactional
+class AdminCatalogServiceTest {
+    @Autowired AdminCatalogService admin;
+    @Autowired ProductService publicService;
+
+    private ProductRequest product(String slug, String categoryId) {
+        return new ProductRequest("Name " + slug, slug, "desc", categoryId, 250_000, "https://img/x.jpg", true);
+    }
+
+    private static ErrorCode codeOf(Throwable t) {
+        return ((AppException) t).getErrorCode();
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanBuildCatalogAndItAppearsPublicly() {
+        var cat = admin.createCategory(new CategoryRequest("Shirts", "shirts"));
+        var created = admin.createProduct(product("oxford-shirt", cat.id()));
+        var variant = admin.createVariant(created.id(), new VariantRequest("M", "blue", "OXF-M-BLUE", 10, null, null));
+
+        assertThat(variant.price()).isEqualTo(250_000);
+        assertThat(publicService.getBySlug("oxford-shirt").variants()).hasSize(1);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void duplicateSlugAndSkuAreRejected() {
+        var created = admin.createProduct(product("dup-tee", null));
+        admin.createVariant(created.id(), new VariantRequest("M", "red", "DUP-1", 1, null, null));
+
+        assertThatThrownBy(() -> admin.createProduct(product("dup-tee", null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.SLUG_EXISTED);
+        assertThatThrownBy(() -> admin.createVariant(created.id(), new VariantRequest("L", "red", "DUP-1", 1, null, null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.SKU_EXISTED);
+
+        var other = admin.createProduct(product("other-tee", null));
+        assertThatThrownBy(() -> admin.updateProduct(other.id(), product("dup-tee", null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.SLUG_EXISTED);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void deactivatingHidesFromPublicButAdminStillSees() {
+        var created = admin.createProduct(product("seasonal", null));
+        admin.deactivateProduct(created.id());
+
+        assertThat(publicService.search("", "seasonal", 0, 20).items()).isEmpty();
+        assertThat(admin.listProducts(0, 50).items()).extracting(ProductSummaryResponse::slug).contains("seasonal");
+        assertThat(admin.getProduct(created.id()).active()).isFalse();
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void variantCanBeDeactivatedAndUpdated() {
+        var created = admin.createProduct(product("polo", null));
+        var v = admin.createVariant(created.id(), new VariantRequest("M", "green", "POLO-M-G", 4, null, null));
+        var updated = admin.updateVariant(v.id(), new VariantRequest("M", "green", "POLO-M-G", 9, 199_000L, null));
+        assertThat(updated.stock()).isEqualTo(9);
+        assertThat(updated.price()).isEqualTo(199_000);
+
+        admin.deactivateVariant(v.id());
+        assertThat(publicService.getBySlug("polo").variants()).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void nonAdminIsDenied() {
+        assertThatThrownBy(() -> admin.createCategory(new CategoryRequest("X", "x")))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+}
