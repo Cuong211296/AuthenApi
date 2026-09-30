@@ -8,6 +8,7 @@ import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import { Skeleton } from '../components/ui/Skeleton.jsx';
 import { AlertIcon, ArrowIcon, CheckIcon, ClockIcon, PinIcon } from '../components/ui/icons.jsx';
+import { isOrderNotFound } from '../utils/orderErrors.js';
 import { formatVnd } from '../utils/money.js';
 import {
   ORDER_STATUS_LABEL, ORDER_STATUS_TONE, PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE,
@@ -42,7 +43,9 @@ export default function OrderDetail() {
   // The one-shot messages from checkout are read once, then removed from the history entry so a refresh does not replay them.
   const [flash] = useState(() => ({ placed: Boolean(location.state?.placed), payError: location.state?.payError || '' }));
   const [order, setOrder] = useState(null);
-  const [error, setError] = useState(flash.payError);
+  const [error, setError] = useState(flash.payError); // pay-start error, shown in the banner area once the order is loaded
+  const [loadError, setLoadError] = useState(null); // failure of GET /orders/:code
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -52,11 +55,12 @@ export default function OrderDetail() {
 
   useEffect(() => {
     let ignore = false;
+    setLoadError(null);
     api('GET', `/orders/${code}`)
       .then((o) => { if (!ignore) setOrder(o); })
-      .catch((e) => { if (!ignore) setError(e.message); });
+      .catch((e) => { if (!ignore) setLoadError(e); });
     return () => { ignore = true; };
-  }, [code]);
+  }, [code, attempt]);
 
   async function payWithMomo() {
     setBusy(true);
@@ -73,17 +77,20 @@ export default function OrderDetail() {
   }
 
   if (!order) {
-    if (!error) return <DetailSkeleton />;
+    if (!loadError) return <DetailSkeleton />;
+    const notFound = isOrderNotFound(loadError);
     return (
       <div className="container od">
         <EmptyState
           tone="danger"
           role="alert"
           icon={<AlertIcon size={28} />}
-          title="Không tìm thấy đơn hàng"
-          action={<Button as={Link} to="/orders" variant="dark">Về danh sách đơn hàng</Button>}
+          title={notFound ? 'Không tìm thấy đơn hàng' : 'Không tải được đơn hàng'}
+          action={notFound
+            ? <Button as={Link} to="/orders" variant="dark">Về danh sách đơn hàng</Button>
+            : <Button variant="dark" onClick={() => setAttempt((n) => n + 1)}>Thử lại</Button>}
         >
-          {error}
+          {loadError.message}
         </EmptyState>
       </div>
     );

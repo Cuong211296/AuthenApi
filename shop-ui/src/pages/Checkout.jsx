@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useCart } from '../context/CartContext.jsx';
@@ -68,6 +68,7 @@ export default function Checkout() {
   const [form, setForm] = useState({ receiverName: '', phone: '', email: '', address: '', province: '', note: '', paymentMethod: 'MOMO' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false); // guards double submits that arrive before `busy` re-renders
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const set = (key) => (e) => { const { value } = e.target; setForm((f) => ({ ...f, [key]: value })); };
@@ -98,7 +99,7 @@ export default function Checkout() {
 
   async function submit(e) {
     e.preventDefault();
-    if (busy) return;
+    if (busy || inFlight.current) return;
     setError('');
     setSubmitted(true);
     const firstInvalid = FIELD_ORDER.find((key) => errors[key]);
@@ -107,11 +108,13 @@ export default function Checkout() {
       return;
     }
     const payload = normalizeCheckoutForm(form);
+    inFlight.current = true;
     setBusy(true);
     let order;
     try {
       order = await api('POST', '/orders', payload);
     } catch (err) {
+      inFlight.current = false;
       setBusy(false);
       return setError(err.code === 1011
         ? 'Thông tin chưa hợp lệ. Hãy kiểm tra lại họ tên, số điện thoại, email và địa chỉ.'

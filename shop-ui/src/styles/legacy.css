@@ -84,7 +84,7 @@
 .legacy-page .card.row > div > .chips { margin-top: 8px; }
 .legacy-page .card.row > div > label.form { margin-top: 20px; }
 .legacy-page .card.row > div > h1 { margin-bottom: 4px; }
-.legacy-page .card.row > div > 
+
 /* Plain text links in old pages */
 .legacy-page a:not(.btn):not(.chip):not([class*='ui-']) { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .legacy-page a:not(.btn):not(.chip):not([class*='ui-']):hover { color: var(--ink); }

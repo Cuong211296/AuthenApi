@@ -5,17 +5,9 @@ import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import StatusMark from '../components/ui/StatusMark.jsx';
 import { ArrowIcon, RefreshIcon } from '../components/ui/icons.jsx';
+import { paymentView } from '../utils/paymentView.js';
 import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from '../utils/labels.js';
 import './PaymentResult.css';
-
-/** Which state to show: loading | paid | pending | failed | cancelled | error. */
-function viewOf({ result, error }) {
-  if (!result) return error ? 'error' : 'loading';
-  if (result.paymentStatus === 'PAID') return 'paid';
-  if (result.orderStatus === 'CANCELLED') return 'cancelled';
-  if (result.paymentStatus === 'FAILED') return 'failed';
-  return 'pending';
-}
 
 const COPY = {
   loading: { mark: 'pending', title: 'Đang xác nhận với MoMo...', text: 'Vui lòng chờ trong giây lát, đừng đóng trang này.' },
@@ -27,6 +19,7 @@ const COPY = {
   },
   failed: { mark: 'danger', title: 'Thanh toán không thành công', text: 'Giao dịch chưa hoàn tất. Bạn có thể thử thanh toán lại từ trang đơn hàng.' },
   cancelled: { mark: 'danger', title: 'Đơn hàng đã bị huỷ', text: 'Đơn hàng đã bị huỷ (hết hạn thanh toán).' },
+  unknown: { mark: 'warn', title: 'Chưa rõ trạng thái thanh toán', text: 'Hãy xem chi tiết đơn hàng để biết trạng thái mới nhất.' },
   error: { mark: 'warn', title: 'Không thể xác nhận thanh toán', text: '' },
 };
 
@@ -53,11 +46,12 @@ export default function PaymentResult() {
 
   useEffect(() => {
     let ignore = false;
+    setResult(null); // never show a badge that belongs to another order
     check(() => ignore);
     return () => { ignore = true; };
   }, [check]);
 
-  const view = viewOf({ result, error });
+  const view = paymentView({ result, error });
   const copy = COPY[view];
   const text = view === 'error' ? error : copy.text;
 
