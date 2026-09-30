@@ -45,7 +45,7 @@ public class PaymentService {
                 && order.getExpiresAt() != null && order.getExpiresAt().isAfter(Instant.now());
         if (!payable) throw new AppException(ErrorCode.ORDER_NOT_PAYABLE);
 
-        String providerOrderId = order.getCode() + "_" + System.currentTimeMillis();
+        String providerOrderId = order.getCode() + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String requestId = UUID.randomUUID().toString();
         var result = gateway.create(new MomoCreateCommand(providerOrderId, requestId, order.getTotal(),
                 "Thanh toan don hang " + order.getCode(),
@@ -77,10 +77,16 @@ public class PaymentService {
     }
 
     public void handleIpn(MomoIpnRequest ipn) {
+        if (isBlank(momoProperties.secretKey()) || isBlank(momoProperties.accessKey()))
+            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR);
         String expected = MomoSigner.hmacSha256Hex(momoProperties.secretKey(),
                 MomoSigner.ipnRaw(momoProperties.accessKey(), ipn));
         if (!MomoSigner.constantTimeEquals(expected, ipn.signature()))
             throw new AppException(ErrorCode.INVALID_PAYMENT_SIGNATURE);
         finalizer.finalizePayment(ipn.orderId(), ipn.resultCode(), ipn.amount(), ipn.transId(), null);
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 }

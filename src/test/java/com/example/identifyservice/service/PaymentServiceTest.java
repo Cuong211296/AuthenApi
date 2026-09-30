@@ -52,6 +52,7 @@ class PaymentServiceTest {
     @Autowired OrderService orders;
     @Autowired EntityManager em;
     @Autowired ApplicationEvents events;
+    @Autowired PaymentFinalizer finalizer;
 
     User alice;
     Order order;
@@ -203,6 +204,69 @@ class PaymentServiceTest {
 
         payments.handleIpn(signedIpn(providerOrderId, order.getTotal(), 0));
         assertThat(confirmedEvents()).isEqualTo(1);
+    }
+
+    @Test
+    void nonTerminalCodesLeaveAttemptPendingAndTerminalCodeFails() {
+        payments.startMomoPayment(order.getCode());
+        String attempt = momo.creates.get(0).providerOrderId();
+
+        for (int code : new int[]{99, 40, -1}) {
+            assertThat(finalizer.finalizePayment(attempt, code, -1, null, "{}")).isEqualTo(FinalizeOutcome.PENDING);
+            assertThat(paymentRepository.findByProviderOrderId(attempt).orElseThrow().getStatus())
+                    .isEqualTo(PaymentAttemptStatus.PENDING);
+        }
+        assertThat(finalizer.finalizePayment(attempt, 1006, -1, null, "{}")).isEqualTo(FinalizeOutcome.FAILED);
+        assertThat(paymentRepository.findByProviderOrderId(attempt).orElseThrow().getStatus())
+                .isEqualTo(PaymentAttemptStatus.FAILED);
+    }
+
+    @Test
+    void successAfterNonTerminalCodeMarksOrderPaid() {
+        payments.startMomoPayment(order.getCode());
+        String attempt = momo.creates.get(0).providerOrderId();
+        assertThat(finalizer.finalizePayment(attempt, 99, -1, null, "{}")).isEqualTo(FinalizeOutcome.PENDING);
+
+        assertThat(finalizer.finalizePayment(attempt, 0, order.getTotal(), 42L, "{}")).isEqualTo(FinalizeOutcome.PAID);
+        assertThat(confirmedEvents()).isEqualTo(1);
+    }
+
+    @Test
+    void secondAttemptPaidOnAlreadyPaidOrderIsFlaggedAsDuplicate() {
+        payments.startMomoPayment(order.getCode());
+        payments.startMomoPayment(order.getCode());
+        String first = momo.creates.get(0).providerOrderId();
+        String second = momo.creates.get(1).providerOrderId();
+        assertThat(second).isNotEqualTo(first).startsWith(order.getCode() + "_").hasSizeLessThanOrEqualTo(50);
+
+        assertThat(finalizer.finalizePayment(first, 0, order.getTotal(), 1L, "{}")).isEqualTo(FinalizeOutcome.PAID);
+        assertThat(finalizer.finalizePayment(second, 0, order.getTotal(), 2L, "{}"))
+                .isEqualTo(FinalizeOutcome.DUPLICATE_PAYMENT);
+        assertThat(finalizer.finalizePayment(first, 0, order.getTotal(), 9L, "{}"))
+                .isEqualTo(FinalizeOutcome.ALREADY_PROCESSED);
+        assertThat(confirmedEvents()).isEqualTo(1);
+    }
+
+    @Test
+    void finalAttemptKeepsItsOriginalTransIdAndRawResponse() {
+        payments.startMomoPayment(order.getCode());
+        String attempt = momo.creates.get(0).providerOrderId();
+        finalizer.finalizePayment(attempt, 0, order.getTotal(), 1L, "first");
+
+        finalizer.finalizePayment(attempt, 0, order.getTotal(), 9L, null);
+
+        var stored = paymentRepository.findByProviderOrderId(attempt).orElseThrow();
+        assertThat(stored.getTransId()).isEqualTo(1L);
+        assertThat(stored.getRawResponse()).isEqualTo("first");
+    }
+
+    @Test
+    void ipnWithBlankMomoKeysIsAGatewayErrorNotACrash() {
+        var unconfigured = new PaymentService(null, null, null, null,
+                new MomoProperties("https://x", "", "", "", "payWithMethod", ""), null);
+        var ipn = new MomoIpnRequest("PC", "o", "r", 1, "i", "t", 1, 0, "ok", "qr", 1L, "", "sig");
+        assertThatThrownBy(() -> unconfigured.handleIpn(ipn))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.PAYMENT_GATEWAY_ERROR);
     }
 
     private MomoIpnRequest signedIpn(String providerOrderId, long amount, int resultCode) {

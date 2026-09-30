@@ -4,9 +4,11 @@ import com.example.identifyservice.entity.Order;
 import com.example.identifyservice.entity.User;
 import com.example.identifyservice.enums.OrderStatus;
 import com.example.identifyservice.enums.PaymentStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +20,11 @@ import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, String> {
+    /** Locking current read (sees committed rows even under REPEATABLE READ snapshots). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from ShopOrder o where o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") String id);
+
     Optional<Order> findByCode(String code);
     Page<Order> findByUser(User user, Pageable pageable);
     Page<Order> findByStatus(OrderStatus status, Pageable pageable);
