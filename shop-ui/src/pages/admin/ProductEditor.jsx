@@ -7,11 +7,12 @@ import Switch from '../../components/ui/Switch.jsx';
 import { Skeleton } from '../../components/ui/Skeleton.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
 import { PlusIcon } from '../../components/ui/icons.jsx';
-import { countError, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors } from '../../utils/admin.js';
+import { countError, editorSnapshot, isEditorDirty, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors } from '../../utils/admin.js';
 import { Thumb } from './AdminParts.jsx';
 
 const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', imageUrl: '', active: true };
 const EMPTY_VARIANT = { size: '', color: '', sku: '', stock: '', price: '' };
+const KEEP_LABEL = { hide: 'Giữ lại', discard: 'Tiếp tục chỉnh sửa' };
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // VariantResponse.price is the effective price: show an override only when it differs from basePrice.
@@ -58,7 +59,13 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
   const [error, setError] = useState('');
   const [errs, setErrs] = useState({});
   const [busy, setBusy] = useState(''); // 'save' | 'hide' | 'add' | variant id
-  const [confirmHide, setConfirmHide] = useState(false);
+  const [confirm, setConfirm] = useState(null); // null | 'hide' | 'discard' (only one inline confirm at a time)
+  const [baseline, setBaseline] = useState(() => (target.isNew ? editorSnapshot({ ...EMPTY_PRODUCT, variants: [] }) : null));
+  const keepRef = useRef(null);
+  const hideBtnRef = useRef(null);
+  const closeBtnRef = useRef(null);
+  const returnFocus = useRef(null);
+  const prevConfirm = useRef(null);
   const [variant, setVariant] = useState(EMPTY_VARIANT);
   const [addErrs, setAddErrs] = useState({});
   const [varErrs, setVarErrs] = useState({});
@@ -71,7 +78,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     let ignore = false;
     setLoadError('');
     api('GET', `/admin/products/${target.id}`)
-      .then((p) => { if (!ignore) setEditing(withOverrides(p)); })
+      .then((p) => { if (!ignore) { const loaded = withOverrides(p); setEditing(loaded); setBaseline(editorSnapshot(loaded)); } })
       .catch((e) => { if (!ignore) setLoadError(e.message); });
     return () => { ignore = true; };
   }, [target.id, attempt]);
@@ -94,6 +101,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
       const saved = editing.isNew ? await api('POST', '/admin/products', body) : await api('PUT', `/admin/products/${editing.id}`, body);
       const fresh = withOverrides(saved);
       setEditing((prev) => ({ ...fresh, variants: prev.isNew ? fresh.variants : prev.variants }));
+      setBaseline((b) => ({ ...b, product: editorSnapshot(fresh).product }));
       toast('Đã lưu sản phẩm', { tone: 'success' });
       onChanged();
     } catch (err) {
@@ -113,15 +121,32 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
       onClose();
     } catch (err) {
       setError(err.message);
-      setConfirmHide(false);
+      setConfirm(null);
     } finally {
       setBusy('');
     }
   }
 
-  const refetchVariants = async (refreshIds) => {
-    const fresh = await api('GET', `/admin/products/${editing.id}`);
-    setEditing((prev) => ({ ...prev, baseline: fresh.basePrice, variants: mergeVariants(prev.variants, fresh.variants || [], fresh.basePrice, refreshIds) }));
+  // Reloads variants after a successful write. A failed reload must not look like a failed write (a retry would
+  // hit a duplicate SKU), so it only warns and keeps the local state.
+  const refetchVariants = async (refreshIds, savedLocal) => {
+    try {
+      const fresh = await api('GET', `/admin/products/${editing.id}`);
+      const serverVariants = fresh.variants || [];
+      setEditing((prev) => ({ ...prev, baseline: fresh.basePrice, variants: mergeVariants(prev.variants, serverVariants, fresh.basePrice, refreshIds) }));
+      setBaseline((b) => {
+        const variants = { ...b.variants };
+        for (const sv of serverVariants) {
+          if (refreshIds.includes(sv.id) || !variants[sv.id]) variants[sv.id] = editorSnapshot({ variants: [{ ...sv, priceOverride: overrideOf(sv, fresh.basePrice) }] }).variants[sv.id];
+        }
+        return { ...b, variants };
+      });
+    } catch {
+      if (savedLocal) setBaseline((b) => ({ ...b, variants: { ...b.variants, ...editorSnapshot({ variants: [savedLocal] }).variants } }));
+      toast('Đã lưu, nhưng chưa tải lại được danh sách biến thể', { tone: 'info' });
+      return false;
+    }
+    return true;
   };
 
   async function addVariant(e) {
@@ -142,8 +167,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
         ...variant, stock: Number(variant.stock), price: variant.price === '' ? null : Number(variant.price),
       });
       setVariant(EMPTY_VARIANT);
-      await refetchVariants([]);
-      toast('Đã thêm biến thể', { tone: 'success' });
+      if (await refetchVariants([])) toast('Đã thêm biến thể', { tone: 'success' });
     } catch (err) {
       setVarError(err.message);
     } finally {
@@ -162,8 +186,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
         size: v.size, color: v.color, sku: v.sku, stock: Number(v.stock),
         price: v.priceOverride === '' || v.priceOverride == null ? null : Number(v.priceOverride), active: v.active,
       });
-      await refetchVariants([v.id]);
-      toast('Đã lưu biến thể', { tone: 'success' });
+      if (await refetchVariants([v.id], v)) toast('Đã lưu biến thể', { tone: 'success' });
     } catch (err) {
       setVarError(err.message);
     } finally {
@@ -171,29 +194,61 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     }
   }
 
+  const dirty = isEditorDirty(baseline, editing);
+  const busyWriting = busy === 'save' || busy === 'hide';
+
+  // Every close path (overlay, Esc, X, "Đóng") comes through here.
+  const requestClose = () => {
+    if (busyWriting) return;
+    if (confirm) { setConfirm(null); return; } // Esc/overlay dismisses the open confirm first
+    if (dirty) { openConfirm('discard'); return; }
+    onClose();
+  };
+  function openConfirm(kind) {
+    const active = document.activeElement;
+    returnFocus.current = bodyRef.current?.contains(active) ? active : null;
+    setConfirm(kind);
+  }
+
+  // Focus: into the safe button when a confirm opens, back to where the user was when it is dismissed.
+  useEffect(() => {
+    if (confirm) {
+      keepRef.current?.focus();
+    } else if (prevConfirm.current) {
+      const back = returnFocus.current?.isConnected ? returnFocus.current : (prevConfirm.current === 'hide' ? hideBtnRef.current : closeBtnRef.current);
+      back?.focus();
+      returnFocus.current = null;
+    }
+    prevConfirm.current = confirm;
+  }, [confirm]);
+
   const isNew = Boolean(editing?.isNew);
   const title = isNew ? 'Sản phẩm mới' : 'Sửa sản phẩm';
   const canHide = editing && !isNew && editing.active;
 
   const footer = editing && (
-    confirmHide ? (
-      <div className="ad-confirm" role="group" aria-label="Xác nhận ẩn sản phẩm">
-        <p>Ẩn sản phẩm này khỏi cửa hàng?</p>
-        <Button variant="ghost" size="sm" onClick={() => setConfirmHide(false)} disabled={busy === 'hide'}>Giữ lại</Button>
-        <Button variant="danger" size="sm" className="ad-solid-danger" loading={busy === 'hide'} onClick={deactivate}>Ẩn sản phẩm</Button>
+    confirm ? (
+      <div className="ad-confirm" role="alertdialog" aria-labelledby="ad-confirm-msg">
+        <p id="ad-confirm-msg">{confirm === 'hide' ? 'Ẩn sản phẩm này khỏi cửa hàng?' : 'Bỏ các thay đổi chưa lưu?'}</p>
+        <Button ref={keepRef} variant="ghost" size="sm" onClick={() => setConfirm(null)} disabled={busy === 'hide'}>{KEEP_LABEL[confirm]}</Button>
+        {confirm === 'hide' ? (
+          <Button variant="danger" size="sm" className="ad-solid-danger" loading={busy === 'hide'} onClick={deactivate}>Ẩn sản phẩm</Button>
+        ) : (
+          <Button variant="danger" size="sm" className="ad-solid-danger" onClick={onClose}>Bỏ thay đổi</Button>
+        )}
       </div>
     ) : (
       <div className="ad-foot">
-        {canHide && <Button variant="danger" onClick={() => setConfirmHide(true)}>Ẩn sản phẩm</Button>}
+        {canHide && <Button ref={hideBtnRef} variant="danger" onClick={() => openConfirm('hide')}>Ẩn sản phẩm</Button>}
         <span className="ad-foot__spacer" />
-        <Button variant="ghost" onClick={onClose}>Đóng</Button>
+        <Button ref={closeBtnRef} variant="ghost" onClick={requestClose}>Đóng</Button>
         <Button type="submit" form="ad-product-form" loading={busy === 'save'}>{isNew ? 'Tạo sản phẩm' : 'Lưu'}</Button>
       </div>
     )
   );
 
   return (
-    <Drawer open={open} onClose={onClose} title={editing ? title : 'Sản phẩm'} footer={footer} width={760}>
+    <Drawer open={open} onClose={requestClose} title={editing ? title : 'Sản phẩm'} footer={footer} width={760}>
       <div ref={bodyRef}>
         {loadError && (
           <div className="ad-error" role="alert">

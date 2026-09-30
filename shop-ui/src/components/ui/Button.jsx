@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import './Button.css';
 
 /**
@@ -5,7 +6,7 @@ import './Button.css';
  * `loading` disables it and shows a spinner (keeps the label for width/screen readers).
  * `as` renders another element/component (e.g. react-router Link) with the same styling.
  */
-export default function Button({
+const Button = forwardRef(function Button({
   as: Tag = 'button',
   variant = 'primary',
   size = 'md',
@@ -17,13 +18,14 @@ export default function Button({
   disabled,
   children,
   ...rest
-}) {
+}, ref) {
   const classes = ['ui-btn', `ui-btn--${variant}`, `ui-btn--${size}`, block && 'ui-btn--block', loading && 'is-loading', className]
     .filter(Boolean)
     .join(' ');
   const isButton = Tag === 'button';
   return (
     <Tag
+      ref={ref}
       className={classes}
       {...(isButton ? { type: rest.type ?? 'button', disabled: disabled || loading } : { 'aria-disabled': disabled || undefined })}
       aria-busy={loading || undefined}
@@ -35,4 +37,6 @@ export default function Button({
       {iconRight}
     </Tag>
   );
-}
+});
+
+export default Button;

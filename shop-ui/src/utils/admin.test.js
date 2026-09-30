@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countBy, countError, filterProducts, filterRates, mergeVariants, optionalCountError, overrideOf, parseCount, slugify, variantErrors } from './admin.js';
+import { countBy, countError, editorSnapshot, filterProducts, isEditorDirty, filterRates, mergeVariants, optionalCountError, overrideOf, parseCount, slugify, variantErrors } from './admin.js';
 
 describe('filterProducts', () => {
   const items = [
@@ -82,4 +82,39 @@ describe('slugify', () => {
     expect(slugify('Áo thun  Đen (Basic)!')).toBe('ao-thun-den-basic');
     expect(slugify('  ')).toBe('');
   });
+});
+
+describe('isEditorDirty', () => {
+  const editing = () => ({
+    name: 'A', slug: 'a', description: null, categoryId: 'c1', basePrice: 100, imageUrl: '', active: true,
+    variants: [{ id: 'v1', stock: 5, priceOverride: '', active: true }],
+  });
+  it('is clean right after the snapshot', () => {
+    const e = editing();
+    expect(isEditorDirty(editorSnapshot(e), e)).toBe(false);
+  });
+  it('treats null/undefined/number vs string as equal', () => {
+    const base = editorSnapshot(editing());
+    expect(isEditorDirty(base, { ...editing(), description: '', basePrice: '100', variants: [{ id: 'v1', stock: '5', priceOverride: '', active: true }] })).toBe(false);
+  });
+  it('detects product field edits', () => {
+    const base = editorSnapshot(editing());
+    expect(isEditorDirty(base, { ...editing(), name: 'B' })).toBe(true);
+    expect(isEditorDirty(base, { ...editing(), active: false })).toBe(true);
+    expect(isEditorDirty(base, { ...editing(), categoryId: '' })).toBe(true);
+  });
+  it('reads the category from category.id when categoryId is unset', () => {
+    const e = { ...editing(), categoryId: undefined, category: { id: 'c1' } };
+    expect(isEditorDirty(editorSnapshot(e), e)).toBe(false);
+  });
+  it('detects variant edits but ignores variants added after the baseline', () => {
+    const base = editorSnapshot(editing());
+    const changed = editing(); changed.variants[0].stock = '9';
+    expect(isEditorDirty(base, changed)).toBe(true);
+    const price = editing(); price.variants[0].priceOverride = '10';
+    expect(isEditorDirty(base, price)).toBe(true);
+    const added = editing(); added.variants.push({ id: 'v2', stock: 1, priceOverride: '', active: true });
+    expect(isEditorDirty(base, added)).toBe(false);
+  });
+  it('is false without a baseline', () => expect(isEditorDirty(null, editing())).toBe(false));
 });

@@ -69,3 +69,31 @@ export const countBy = (items, keyOf) => items.reduce((acc, item) => {
 
 /** URL slug from a name: diacritics removed, lower-case, words joined with dashes. */
 export const slugify = (s) => normalizeText(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+const PRODUCT_KEYS = ['name', 'slug', 'description', 'categoryId', 'basePrice', 'imageUrl', 'active'];
+const str = (v) => (v === null || v === undefined ? '' : String(v));
+
+/** The user-editable parts of an editor state (product fields + per-variant stock/override/active), as plain strings. */
+export function editorSnapshot(editing) {
+  const product = {};
+  for (const key of PRODUCT_KEYS) {
+    const value = key === 'categoryId' ? (editing.categoryId ?? editing.category?.id) : editing[key];
+    product[key] = key === 'active' ? Boolean(value) : str(value);
+  }
+  const variants = {};
+  for (const v of editing.variants || []) {
+    variants[v.id] = { stock: str(v.stock), priceOverride: str(v.priceOverride), active: Boolean(v.active) };
+  }
+  return { product, variants };
+}
+
+/** True when `current` (an editor state) differs from `baseline` (an editorSnapshot). Variants unknown to the baseline are ignored. */
+export function isEditorDirty(baseline, current) {
+  if (!baseline || !current) return false;
+  const now = editorSnapshot(current);
+  if (PRODUCT_KEYS.some((k) => now.product[k] !== baseline.product[k])) return true;
+  return Object.entries(now.variants).some(([id, v]) => {
+    const base = baseline.variants[id];
+    return base && (base.stock !== v.stock || base.priceOverride !== v.priceOverride || base.active !== v.active);
+  });
+}

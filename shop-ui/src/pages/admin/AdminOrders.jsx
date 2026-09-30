@@ -105,12 +105,12 @@ export default function AdminOrders() {
     try {
       await api('PUT', `/admin/orders/${code}/status`, { status: next });
       toast(`Đơn ${code}: ${ORDER_STATUS_LABEL[next]}`, { tone: 'success' });
-      setTick((t) => t + 1);
     } catch (e) {
       toast(e.message, { tone: 'danger' });
     } finally {
       setBusy('');
       setConfirm((c) => ({ ...c, open: false }));
+      setTick((t) => t + 1); // reload even after a failure so stale action buttons disappear
     }
   }
 
