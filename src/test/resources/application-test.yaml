@@ -25,3 +25,11 @@ logging:
   level:
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
+
+momo:
+  endpoint: https://test-payment.momo.vn
+  partner-code: PARTNER
+  access-key: ACCESS
+  secret-key: SECRET
+  request-type: payWithMethod
+  ipn-url: http://localhost:8081/identity/payments/momo/ipn

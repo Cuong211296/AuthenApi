@@ -45,3 +45,11 @@ logging:
   level:
     root: ${LOG_LEVEL:INFO}
     org.hibernate.SQL: ${HIBERNATE_LOG_LEVEL:INFO}
+
+momo:
+  endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn}
+  partner-code: ${MOMO_PARTNER_CODE:}
+  access-key: ${MOMO_ACCESS_KEY:}
+  secret-key: ${MOMO_SECRET_KEY:}
+  request-type: ${MOMO_REQUEST_TYPE:payWithMethod}
+  ipn-url: ${MOMO_IPN_URL:http://localhost:8081/identity/payments/momo/ipn}

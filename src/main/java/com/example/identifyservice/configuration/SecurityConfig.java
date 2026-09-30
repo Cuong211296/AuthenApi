@@ -35,6 +35,7 @@ import java.util.Arrays;
             "/auth/introspect",
             "/auth/logout",
             "/auth/refresh",
+            "/payments/momo/ipn",
 
 
     };
