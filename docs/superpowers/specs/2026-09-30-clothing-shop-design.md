@@ -89,3 +89,13 @@ Coupons, reviews, wishlist, image upload, real-money operation, refunds, multi-c
 - MoMo sandbox keys and SMTP credentials needed from the user.
 - Existing tables (`user`, etc.) may need migration SQL; existing rows must be backfilled per the DB workflow.
 - The repository has many uncommitted changes from earlier work; implementation should happen on a fresh branch or worktree.
+
+## 11. Amendments made during planning (2026-09-30)
+
+- Shipping table is seeded with the 34 provincial-level units in force since July 2025 (not 63); admins can add rows.
+- `Order` also stores the customer `email` captured at checkout (used for the confirmation email).
+- A failed or cancelled MoMo attempt leaves the order `PENDING_PAYMENT` so the customer can retry until `expiresAt`; the expiry job cancels it afterwards (replaces "a failed result cancels immediately").
+- `GET /payments/momo/return?orderCode=` ignores MoMo's redirect parameters and queries MoMo instead.
+- The expiry job reconciles with MoMo before cancelling, because without a public IPN a customer who paid and closed the tab would otherwise be cancelled.
+- Signup also fixed: client-supplied `id` no longer overwrites existing users; new users get role USER; accounts lock for 15 minutes after 5 failed logins.
+- Frontend refreshes the JWT proactively before expiry (the backend refresh endpoint rejects expired tokens), rather than on 401.

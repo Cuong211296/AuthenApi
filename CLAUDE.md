@@ -89,8 +89,9 @@ entity              → Domain models mapped to database
 
 - `SecurityConfig`: Spring Security configuration
   - OAuth2 Resource Server with custom JWT decoder
-  - Public endpoints: `/auth/token`, `/auth/introspect`, `/auth/logout`, `/auth/refresh`, `/users` (POST only)
-  - Protected endpoints: All others require valid JWT
+  - Public POST: `/auth/token`, `/auth/introspect`, `/auth/logout`, `/auth/refresh`, `/users` (signup), `/payments/momo/ipn` (HMAC-signed by MoMo)
+  - Public GET: `/products/**`, `/categories/**`, `/shipping/fee`, `/shipping/provinces`
+  - `/admin/**` requires role ADMIN; all other endpoints require a valid JWT
   - Method-level security enabled (`@PreAuthorize`, `@Secured`)
 
 - `CustomJwtDecoder`: Custom decoder for JWT validation via configured signerKey
@@ -140,6 +141,24 @@ entity              → Domain models mapped to database
 **Configuration File:**
 - `src/main/resources/application.yaml` contains DB connection, JWT signer key, and port
 - Database configured for auto-update schema; in production, switch to `validate` or use migrations
+
+## Shop (clothing shop backend)
+
+Design: `docs/superpowers/specs/2026-09-30-clothing-shop-design.md` (see its section 11 for amendments).
+
+**New packages:** `momo/` (request signer, gateway client, idempotent payment finalizer), `event/` (async order-confirmation email listener), `util/` (helpers).
+
+**Endpoints (context path `/identity`):**
+- Public GET: `/products`, `/products/{slug}`, `/categories`, `/shipping/fee?province=`, `/shipping/provinces`
+- Authenticated: `/cart` (get, add, update, remove, clear), `POST /orders`, `GET /orders`, `GET /orders/{code}`, `POST /orders/{code}/pay/momo`, `GET /payments/momo/return?orderCode=`
+- Public (MoMo callback): `POST /payments/momo/ipn`
+- Admin: `/admin/products`, `/admin/variants`, `/admin/orders` (list, `PUT /{code}/status`), `/admin/shipping-rates`
+
+**Environment variables (`.env`):** `ADMIN_PASSWORD`, `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY` (optional `MOMO_ENDPOINT`, `MOMO_REQUEST_TYPE`, `MOMO_IPN_URL`), `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `FRONTEND_URL`. The app refuses to start without `JWT_SIGNER_KEY`, `DB_PASSWORD` and `ADMIN_PASSWORD`.
+
+**Tests:** run on H2, so `mvn test` needs no MySQL (use `mvn -q clean test`).
+
+**Existing databases:** run `migration_v3_roles_backfill.sql` via `python scripts/dbtool.py run` (after a backup) so existing users get role USER.
 
 ## Testing Tips
 
