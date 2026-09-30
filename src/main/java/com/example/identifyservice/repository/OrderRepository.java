@@ -1,0 +1,48 @@
+package com.example.identifyservice.repository;
+
+import com.example.identifyservice.entity.Order;
+import com.example.identifyservice.entity.User;
+import com.example.identifyservice.enums.OrderStatus;
+import com.example.identifyservice.enums.PaymentStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface OrderRepository extends JpaRepository<Order, String> {
+    Optional<Order> findByCode(String code);
+    Page<Order> findByUser(User user, Pageable pageable);
+    Page<Order> findByStatus(OrderStatus status, Pageable pageable);
+    List<Order> findByStatusAndExpiresAtBefore(OrderStatus status, Instant time);
+
+    /** Atomic "pay once": succeeds only while the order is still PENDING_PAYMENT. Returns rows changed (0 or 1). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ShopOrder o
+            set o.status = com.example.identifyservice.enums.OrderStatus.PENDING_CONFIRM,
+                o.paymentStatus = com.example.identifyservice.enums.PaymentStatus.PAID,
+                o.paidAt = :now
+            where o.id = :id
+              and o.status = com.example.identifyservice.enums.OrderStatus.PENDING_PAYMENT
+            """)
+    int markPaid(@Param("id") String id, @Param("now") Instant now);
+
+    /** Atomic "close unpaid order": succeeds only while the order is still PENDING_PAYMENT. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ShopOrder o
+            set o.status = com.example.identifyservice.enums.OrderStatus.CANCELLED,
+                o.paymentStatus = :paymentStatus
+            where o.id = :id
+              and o.status = com.example.identifyservice.enums.OrderStatus.PENDING_PAYMENT
+            """)
+    int cancelPending(@Param("id") String id, @Param("paymentStatus") PaymentStatus paymentStatus);
+}
