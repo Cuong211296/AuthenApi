@@ -13,7 +13,7 @@ let nextId = 1;
 /**
  * Provides `useToast()`: `toast(message, { tone, action, duration })` or `toast({ message, tone, action, duration })`.
  * tone: neutral | success | danger | info. action: { label, to } (router link) or { label, onClick }.
- * Returns the toast id; `dismiss(id)` removes it early.
+ * Returns the toast id; `dismiss(id)` removes it early and `dismissAll()` clears the stack.
  */
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -23,6 +23,12 @@ export function ToastProvider({ children }) {
     setToasts((list) => list.filter((t) => t.id !== id));
     clearTimeout(timers.current.get(id));
     timers.current.delete(id);
+  }, []);
+
+  const dismissAll = useCallback(() => {
+    timers.current.forEach(clearTimeout);
+    timers.current.clear();
+    setToasts([]);
   }, []);
 
   const toast = useCallback((input, options = {}) => {
@@ -36,7 +42,7 @@ export function ToastProvider({ children }) {
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
-  const value = useMemo(() => ({ toast, dismiss }), [toast, dismiss]);
+  const value = useMemo(() => ({ toast, dismiss, dismissAll }), [toast, dismiss, dismissAll]);
   return (
     <ToastContext.Provider value={value}>
       {children}

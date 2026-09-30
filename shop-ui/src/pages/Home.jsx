@@ -4,7 +4,7 @@ import { api } from '../api/client.js';
 import { useCategories } from '../hooks/useCategories.js';
 import ProductCard from '../components/ProductCard.jsx';
 import { SEARCH_INPUT_ID } from '../components/layout/Header.jsx';
-import Tabs from '../components/ui/Tabs.jsx';
+import Tabs, { tabDomId } from '../components/ui/Tabs.jsx';
 import Marquee from '../components/ui/Marquee.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -152,6 +152,7 @@ export default function Home() {
             onChange={(value) => update({ category: value })}
             label="Danh mục sản phẩm"
             panelId="product-results"
+            idPrefix="shop"
           />
           <p className="shop__count" aria-live="polite">
             {data && !loading && !error && (
@@ -160,7 +161,14 @@ export default function Home() {
           </p>
         </div>
 
-        <div id="product-results" className="shop__results" aria-busy={loading}>
+        <div
+          id="product-results"
+          className="shop__results"
+          role="tabpanel"
+          aria-label="Danh sách sản phẩm"
+          aria-labelledby={tabs.some((t) => t.value === category) ? tabDomId('shop', category) : undefined}
+          aria-busy={loading}
+        >
           {error ? (
             <EmptyState
               tone="danger"

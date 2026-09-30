@@ -6,13 +6,18 @@ import './Tabs.css';
 /**
  * Segmented control with a sliding indicator (WAI-ARIA tabs with manual activation).
  * items: [{ value, label }]. Arrow keys / Home / End move focus; Enter or Space selects.
- * `panelId` (optional) is the id of the element the tabs control.
+ * `panelId` (optional) is the id of the results container the tabs control; that container should have `role="tabpanel"`
+ * and `aria-labelledby={tabDomId(idPrefix, value)}`. `idPrefix` gives each tab the id `${idPrefix}-tab-${value}`.
+ * When `value` matches no item (deep link not loaded yet or unknown) nothing is shown as selected, and the first tab
+ * stays reachable with the keyboard.
  */
-export default function Tabs({ items, value, onChange, label, panelId, className = '' }) {
+export const tabDomId = (idPrefix, value) => `${idPrefix}-tab-${value}`;
+
+export default function Tabs({ items, value, onChange, label, panelId, idPrefix, className = '' }) {
   const groupId = useId();
   const reduce = useReducedMotion();
   const refs = useRef([]);
-  const selectedIndex = Math.max(0, items.findIndex((i) => i.value === value));
+  const selectedIndex = items.findIndex((i) => i.value === value);
 
   function onKeyDown(e, index) {
     const last = items.length - 1;
@@ -35,8 +40,9 @@ export default function Tabs({ items, value, onChange, label, panelId, className
               type="button"
               role="tab"
               aria-selected={selected}
+              id={idPrefix ? tabDomId(idPrefix, item.value) : undefined}
               aria-controls={panelId}
-              tabIndex={selected ? 0 : -1}
+              tabIndex={selected || (selectedIndex < 0 && index === 0) ? 0 : -1}
               className={`ui-tabs__tab ${selected ? 'is-selected' : ''}`}
               onClick={() => onChange(item.value)}
               onKeyDown={(e) => onKeyDown(e, index)}

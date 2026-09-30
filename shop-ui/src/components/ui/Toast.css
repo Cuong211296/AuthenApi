@@ -44,3 +44,9 @@
 }
 .ui-toast__close:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
 .ui-toast :focus-visible { outline-color: #fff; }
+
+/* While a drawer/modal is open, keep toasts clear of its footer buttons: top on phones, bottom-left on desktop. */
+body.has-dialog .ui-toasts { bottom: auto; top: max(12px, env(safe-area-inset-top)); }
+@media (min-width: 768px) {
+  body.has-dialog .ui-toasts { top: auto; bottom: 24px; left: 24px; right: auto; }
+}

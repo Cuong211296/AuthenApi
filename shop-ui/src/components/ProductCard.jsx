@@ -1,13 +1,9 @@
 import { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatVnd } from '../utils/money.js';
+import { initialsOf } from '../utils/initials.js';
 import { ArrowIcon } from './ui/icons.jsx';
 import './ProductCard.css';
-
-/** Up to two initials from a product name, used by the no-image fallback ("Áo thun trơn" -> "ÁT"). */
-function initialsOf(name = '') {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
-}
 
 function ProductCard({ product, eager = false }) {
   const [failed, setFailed] = useState(false);

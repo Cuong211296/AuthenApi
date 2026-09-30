@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useCart } from '../../context/CartContext.jsx';
+import { useCartDrawer } from '../../context/CartDrawerContext.jsx';
 import { useCategories } from '../../hooks/useCategories.js';
 import Drawer from '../ui/Drawer.jsx';
 import { CartIcon, ChevronIcon, MenuIcon, SearchIcon, UserIcon } from '../ui/icons.jsx';
@@ -26,9 +27,10 @@ function useScrolled(threshold = 8) {
 
 function CartButton({ count }) {
   const reduce = useReducedMotion();
+  const { open, openCart } = useCartDrawer();
   const label = count > 0 ? `Giỏ hàng, ${count} sản phẩm` : 'Giỏ hàng';
   return (
-    <Link to="/cart" className="ui-icon-btn hdr-cart" aria-label={label}>
+    <button type="button" className="ui-icon-btn hdr-cart" aria-label={label} aria-haspopup="dialog" aria-expanded={open} onClick={openCart}>
       <CartIcon size={22} />
       <AnimatePresence initial={false}>
         {count > 0 && (
@@ -45,7 +47,7 @@ function CartButton({ count }) {
           </motion.span>
         )}
       </AnimatePresence>
-    </Link>
+    </button>
   );
 }
 

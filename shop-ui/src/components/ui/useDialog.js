@@ -17,12 +17,14 @@ function lockScroll() {
   savedOverflow = body.style.overflow;
   savedPadding = body.style.paddingRight;
   body.style.overflow = 'hidden';
+  body.classList.add('has-dialog');
   if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
 }
 
 function unlockScroll() {
   if (--lockCount > 0) return;
   lockCount = 0;
+  document.body.classList.remove('has-dialog');
   document.body.style.overflow = savedOverflow;
   document.body.style.paddingRight = savedPadding;
 }

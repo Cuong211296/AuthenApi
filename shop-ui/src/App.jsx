@@ -1,6 +1,8 @@
 import { Link, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { CartProvider } from './context/CartContext.jsx';
+import { CartDrawerProvider } from './context/CartDrawerContext.jsx';
+import CartDrawer from './components/cart/CartDrawer.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AppShell from './components/layout/AppShell.jsx';
 import PageTransition from './components/ui/PageTransition.jsx';
@@ -46,8 +48,8 @@ function AppRoutes() {
         <PageTransition key={transitionKey(location.pathname)}>
           <Routes location={location}>
             <Route path="/" element={<Home />} />
-            <Route path="/products/:slug" element={legacy(<ProductDetail />)} />
-            <Route path="/cart" element={<ProtectedRoute>{legacy(<Cart />)}</ProtectedRoute>} />
+            <Route path="/products/:slug" element={<ProductDetail />} />
+            <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
             <Route path="/checkout" element={<ProtectedRoute>{legacy(<Checkout />)}</ProtectedRoute>} />
             <Route path="/payment/result" element={<ProtectedRoute>{legacy(<PaymentResult />)}</ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute>{legacy(<Orders />)}</ProtectedRoute>} />
@@ -68,7 +70,10 @@ export default function App() {
     <AuthProvider>
       <CartProvider>
         <ToastProvider>
-          <AppRoutes />
+          <CartDrawerProvider>
+            <AppRoutes />
+            <CartDrawer />
+          </CartDrawerProvider>
         </ToastProvider>
       </CartProvider>
     </AuthProvider>

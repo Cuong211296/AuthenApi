@@ -22,3 +22,26 @@ describe('clampQuantity', () => {
     expect(clampQuantity(500)).toBe(99);
   });
 });
+
+import { maxQuantityFor, stockLevel } from './quantity.js';
+
+describe('maxQuantityFor', () => {
+  it('uses the stock when it is below the cap', () => expect(maxQuantityFor(7)).toBe(7));
+  it('caps at 99 by default', () => expect(maxQuantityFor(500)).toBe(99));
+  it('respects a custom cap', () => expect(maxQuantityFor(500, 10)).toBe(10));
+  it('is 0 for no stock or bad input', () => {
+    expect(maxQuantityFor(0)).toBe(0);
+    expect(maxQuantityFor(-3)).toBe(0);
+    expect(maxQuantityFor(undefined)).toBe(0);
+  });
+});
+
+describe('stockLevel', () => {
+  it('classifies stock', () => {
+    expect(stockLevel(0)).toBe('out');
+    expect(stockLevel(undefined)).toBe('out');
+    expect(stockLevel(1)).toBe('low');
+    expect(stockLevel(4)).toBe('low');
+    expect(stockLevel(5)).toBe('ok');
+  });
+});

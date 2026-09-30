@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigationType } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './Header.jsx';
 import Footer from './Footer.jsx';
@@ -10,8 +10,14 @@ import Footer from './Footer.jsx';
  */
 export default function AppShell({ children }) {
   const location = useLocation();
+  const navigationType = useNavigationType();
 
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  // New pages start at the top; back/forward (POP) keeps the browser's own scroll restoration.
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0);
+    // Only a pathname change should scroll, not a change of navigation type alone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   return (
     <>
