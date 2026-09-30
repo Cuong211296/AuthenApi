@@ -84,6 +84,23 @@ class AdminCatalogServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    void skuIsTrimmedBeforeUniquenessCheck() {
+        var created = admin.createProduct(product("trim-tee", null));
+        var first = admin.createVariant(created.id(), new VariantRequest("M", "red", "TRIM-1", 1, null, null));
+        var second = admin.createVariant(created.id(), new VariantRequest("L", "red", "TRIM-2", 1, null, null));
+
+        assertThatThrownBy(() -> admin.createVariant(created.id(), new VariantRequest("S", "red", " TRIM-1", 1, null, null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.SKU_EXISTED);
+
+        var updated = admin.updateVariant(first.id(), new VariantRequest("M", "red", "TRIM-1 ", 5, null, null));
+        assertThat(updated.stock()).isEqualTo(5);
+
+        assertThatThrownBy(() -> admin.updateVariant(second.id(), new VariantRequest("L", "red", " TRIM-1 ", 1, null, null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.SKU_EXISTED);
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     void nonAdminIsDenied() {
         assertThatThrownBy(() -> admin.createCategory(new CategoryRequest("X", "x")))

@@ -80,7 +80,8 @@ public class AdminCatalogService {
     @Transactional
     public VariantResponse createVariant(String productId, VariantRequest request) {
         Product product = requireProduct(productId);
-        if (variantRepository.existsBySku(request.sku())) throw new AppException(ErrorCode.SKU_EXISTED);
+        String sku = request.sku().trim();
+        if (variantRepository.existsBySku(sku)) throw new AppException(ErrorCode.SKU_EXISTED);
         ProductVariant variant = ProductVariant.builder().product(product).build();
         apply(variant, request);
         product.getVariants().add(variant);
@@ -90,7 +91,8 @@ public class AdminCatalogService {
     @Transactional
     public VariantResponse updateVariant(String variantId, VariantRequest request) {
         ProductVariant variant = requireVariant(variantId);
-        if (!variant.getSku().equals(request.sku()) && variantRepository.existsBySku(request.sku()))
+        String sku = request.sku().trim();
+        if (!variant.getSku().equals(sku) && variantRepository.existsBySku(sku))
             throw new AppException(ErrorCode.SKU_EXISTED);
         apply(variant, request);
         return VariantResponse.from(variantRepository.save(variant));
