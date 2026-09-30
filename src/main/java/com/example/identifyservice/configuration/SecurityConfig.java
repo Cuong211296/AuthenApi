@@ -29,7 +29,8 @@ import java.util.Arrays;
     @EnableWebSecurity
 @EnableMethodSecurity
     public class SecurityConfig {
-    private final String[] PUBLIC_ENDPOINTS = {"/users",
+    private final String[] PUBLIC_GET_ENDPOINTS = {"/products/**", "/categories/**", "/shipping/fee", "/shipping/provinces"};
+    private final String[] PUBLIC_POST_ENDPOINTS = {"/users",
             "/auth/token",
             "/auth/introspect",
             "/auth/logout",
@@ -46,7 +47,9 @@ import java.util.Arrays;
             httpSecurity.cors(cors -> cors.configurationSource(corsConfigurationSource()));
 
             httpSecurity.authorizeHttpRequests(request ->
-                    request.requestMatchers(HttpMethod.POST,PUBLIC_ENDPOINTS).permitAll()
+                    request.requestMatchers(HttpMethod.POST,PUBLIC_POST_ENDPOINTS).permitAll()
+                            .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
+                            .requestMatchers("/admin/**").hasRole("ADMIN")
 //                            .requestMatchers(HttpMethod.GET,"/users")
 //                            .hasRole(Role.ADMIN.name())
                             .anyRequest().authenticated());

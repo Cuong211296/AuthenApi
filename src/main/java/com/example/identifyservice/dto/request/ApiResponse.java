@@ -16,4 +16,8 @@ public class ApiResponse <T> {
      private String message;
      private T result;
 
+     public static <T> ApiResponse<T> ok(T result) {
+          return ApiResponse.<T>builder().result(result).build();
+     }
+
 }
