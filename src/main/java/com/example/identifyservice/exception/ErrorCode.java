@@ -14,7 +14,23 @@ public enum ErrorCode {
     UNAUTHORIZED(1007,"You do not have permission", HttpStatus.FORBIDDEN),
     DOB_INVALID(1008,"Your age must be at least {min}", HttpStatus.BAD_REQUEST),
     PERMISSION_NOT_EXIST(1009,"Permission not exist", HttpStatus.NOT_FOUND),
-    INVALID_KEY(1010, "Uncategorized error", HttpStatus.BAD_REQUEST);
+    INVALID_KEY(1010, "Uncategorized error", HttpStatus.BAD_REQUEST),
+    INVALID_INPUT(1011, "Invalid input", HttpStatus.BAD_REQUEST),
+    PRODUCT_NOT_FOUND(2001, "Product not found", HttpStatus.NOT_FOUND),
+    CATEGORY_NOT_FOUND(2002, "Category not found", HttpStatus.NOT_FOUND),
+    VARIANT_NOT_FOUND(2003, "Product variant not found or unavailable", HttpStatus.NOT_FOUND),
+    SLUG_EXISTED(2004, "Slug already exists", HttpStatus.BAD_REQUEST),
+    SKU_EXISTED(2005, "SKU already exists", HttpStatus.BAD_REQUEST),
+    OUT_OF_STOCK(2006, "Not enough stock", HttpStatus.CONFLICT),
+    INVALID_QUANTITY(2007, "Invalid quantity", HttpStatus.BAD_REQUEST),
+    CART_EMPTY(2008, "Cart is empty", HttpStatus.BAD_REQUEST),
+    INVALID_PROVINCE(2009, "Province is not supported", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_FOUND(2010, "Order not found", HttpStatus.NOT_FOUND),
+    INVALID_ORDER_STATUS(2011, "Invalid order status change", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_PAYABLE(2012, "Order cannot be paid", HttpStatus.BAD_REQUEST),
+    INVALID_PAYMENT_SIGNATURE(2013, "Invalid payment signature", HttpStatus.BAD_REQUEST),
+    PAYMENT_AMOUNT_MISMATCH(2014, "Payment amount mismatch", HttpStatus.BAD_REQUEST),
+    PAYMENT_GATEWAY_ERROR(2015, "Payment gateway error", HttpStatus.BAD_GATEWAY);
 
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

@@ -33,6 +33,7 @@ public class ApplicationInitConfig {
                 User user = User.builder()
                         .username("admin")
                         .password(passwordEncoder.encode("admin"))
+                        .dob(java.time.LocalDate.of(1970, 1, 1))
                         //.roles(roles)
 //                        .createTime(String.valueOf(timestamp.getTime()))
                         .build();

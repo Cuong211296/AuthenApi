@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: "jdbc:h2:mem:${random.uuid};MODE=MySQL;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1"
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  mail:
+    host: localhost
+    port: 3025
+
+jwt:
+  signerKey: "test-signer-key-test-signer-key-test-signer-key-test-signer-key-0123456789"
+
+shop:
+  admin-password: "Admin#12345"
+
+logging:
+  level:
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
