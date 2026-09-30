@@ -7,6 +7,7 @@ import com.example.identifyservice.enums.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -24,6 +25,9 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from ShopOrder o where o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") String id);
+
+    @EntityGraph(attributePaths = "items")
+    Optional<Order> findWithItemsById(String id);
 
     Optional<Order> findByCode(String code);
     Page<Order> findByUser(User user, Pageable pageable);
