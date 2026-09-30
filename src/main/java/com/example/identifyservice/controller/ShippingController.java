@@ -1,6 +1,7 @@
 package com.example.identifyservice.controller;
 
 import com.example.identifyservice.dto.request.ApiResponse;
+import com.example.identifyservice.dto.request.ShippingFeeUpdateRequest;
 import com.example.identifyservice.dto.request.ShippingRateRequest;
 import com.example.identifyservice.dto.response.ShippingFeeResponse;
 import com.example.identifyservice.dto.response.ShippingRateResponse;
@@ -40,7 +41,7 @@ public class ShippingController {
     }
 
     @PutMapping("/admin/shipping-rates/{id}")
-    ApiResponse<ShippingRateResponse> adminUpdate(@PathVariable String id, @RequestBody @Valid ShippingRateRequest request) {
+    ApiResponse<ShippingRateResponse> adminUpdate(@PathVariable String id, @RequestBody @Valid ShippingFeeUpdateRequest request) {
         return ApiResponse.ok(shippingService.updateFee(id, request.fee()));
     }
 }

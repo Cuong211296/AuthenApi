@@ -44,7 +44,7 @@ public class ShippingService {
     @Transactional
     public ShippingRateResponse create(ShippingRateRequest request) {
         if (repository.existsByProvinceIgnoreCase(request.province().trim()))
-            throw new AppException(ErrorCode.SLUG_EXISTED);
+            throw new AppException(ErrorCode.PROVINCE_EXISTED);
         return ShippingRateResponse.from(repository.save(
                 ShippingRate.builder().province(request.province().trim()).fee(request.fee()).build()));
     }

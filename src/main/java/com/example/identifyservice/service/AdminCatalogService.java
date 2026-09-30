@@ -82,6 +82,8 @@ public class AdminCatalogService {
         Product product = requireProduct(productId);
         String sku = request.sku().trim();
         if (variantRepository.existsBySku(sku)) throw new AppException(ErrorCode.SKU_EXISTED);
+        if (variantRepository.existsByProductIdAndSizeAndColor(productId, request.size().trim(), request.color().trim()))
+            throw new AppException(ErrorCode.VARIANT_EXISTED);
         ProductVariant variant = ProductVariant.builder().product(product).build();
         apply(variant, request);
         product.getVariants().add(variant);
@@ -94,6 +96,11 @@ public class AdminCatalogService {
         String sku = request.sku().trim();
         if (!variant.getSku().equals(sku) && variantRepository.existsBySku(sku))
             throw new AppException(ErrorCode.SKU_EXISTED);
+        String size = request.size().trim();
+        String color = request.color().trim();
+        if ((!variant.getSize().equals(size) || !variant.getColor().equals(color))
+                && variantRepository.existsByProductIdAndSizeAndColor(variant.getProduct().getId(), size, color))
+            throw new AppException(ErrorCode.VARIANT_EXISTED);
         apply(variant, request);
         return VariantResponse.from(variantRepository.save(variant));
     }
@@ -111,7 +118,8 @@ public class AdminCatalogService {
         product.setDescription(r.description());
         product.setBasePrice(r.basePrice());
         product.setImageUrl(r.imageUrl());
-        product.setActive(r.active() == null || r.active());
+        if (product.getId() == null) product.setActive(r.active() == null || r.active());
+        else if (r.active() != null) product.setActive(r.active());
         product.setCategory(r.categoryId() == null || r.categoryId().isBlank() ? null
                 : categoryRepository.findById(r.categoryId())
                         .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND)));
@@ -123,7 +131,8 @@ public class AdminCatalogService {
         v.setSku(r.sku().trim());
         v.setStock(r.stock());
         v.setPrice(r.price());
-        v.setActive(r.active() == null || r.active());
+        if (v.getId() == null) v.setActive(r.active() == null || r.active());
+        else if (r.active() != null) v.setActive(r.active());
     }
 
     private Product requireProduct(String id) {

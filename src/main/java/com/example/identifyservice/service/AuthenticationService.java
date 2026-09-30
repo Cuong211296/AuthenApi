@@ -80,7 +80,8 @@ public class AuthenticationService {
                 || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)))
             throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-        boolean authenticated = PASSWORD_ENCODER.matches(request.getPassword(), user.getPassword());
+        boolean authenticated = request.getPassword() != null
+                && PASSWORD_ENCODER.matches(request.getPassword(), user.getPassword());
         if (!authenticated) {
             int attempts = (user.getLoginAttempts() == null ? 0 : user.getLoginAttempts()) + 1;
             if (attempts >= MAX_LOGIN_ATTEMPTS) {

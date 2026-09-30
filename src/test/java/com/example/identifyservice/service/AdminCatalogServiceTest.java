@@ -106,4 +106,39 @@ class AdminCatalogServiceTest {
         assertThatThrownBy(() -> admin.createCategory(new CategoryRequest("X", "x")))
                 .isInstanceOf(AccessDeniedException.class);
     }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void duplicateSizeColourCombinationIsRejected() {
+        var created = admin.createProduct(product("combo-tee", null));
+        admin.createVariant(created.id(), new VariantRequest("M", "red", "COMBO-1", 1, null, null));
+        var other = admin.createVariant(created.id(), new VariantRequest("L", "red", "COMBO-2", 1, null, null));
+
+        assertThatThrownBy(() -> admin.createVariant(created.id(), new VariantRequest("M", "red", "COMBO-3", 1, null, null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.VARIANT_EXISTED);
+        assertThatThrownBy(() -> admin.updateVariant(other.id(), new VariantRequest("M", "red", "COMBO-2", 1, null, null)))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.VARIANT_EXISTED);
+        // updating a variant with its own combination is fine
+        assertThat(admin.updateVariant(other.id(), new VariantRequest("L", "red", "COMBO-2", 7, null, null)).stock()).isEqualTo(7);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void nullActiveOnUpdateKeepsCurrentValue() {
+        var created = admin.createProduct(product("keep-tee", null));
+        var v = admin.createVariant(created.id(), new VariantRequest("M", "red", "KEEP-1", 1, null, null));
+        assertThat(v.active()).isTrue();
+        admin.deactivateVariant(v.id());
+        admin.deactivateProduct(created.id());
+
+        var p = admin.updateProduct(created.id(),
+                new ProductRequest("Renamed", "keep-tee", "desc", null, 250_000, null, null));
+        assertThat(p.active()).isFalse();
+        var uv = admin.updateVariant(v.id(), new VariantRequest("M", "red", "KEEP-1", 2, null, null));
+        assertThat(uv.active()).isFalse();
+
+        var reactivated = admin.updateProduct(created.id(),
+                new ProductRequest("Renamed", "keep-tee", "desc", null, 250_000, null, true));
+        assertThat(reactivated.active()).isTrue();
+    }
 }

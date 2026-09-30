@@ -51,8 +51,8 @@ public class PaymentFinalizer {
         Order order = payment.getOrder();
         PaymentAttemptStatus previous = payment.getStatus();
 
-        if (IN_PROGRESS.contains(resultCode)) return FinalizeOutcome.PENDING;
         if (previous == PaymentAttemptStatus.SUCCESS) return FinalizeOutcome.ALREADY_PROCESSED;
+        if (IN_PROGRESS.contains(resultCode)) return FinalizeOutcome.PENDING;
 
         if (resultCode != 0) {
             if (!TERMINAL_FAILURE_CODES.contains(resultCode)) {

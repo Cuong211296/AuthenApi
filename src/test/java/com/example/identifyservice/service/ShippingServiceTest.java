@@ -59,4 +59,12 @@ class ShippingServiceTest {
         assertThatThrownBy(() -> shipping.create(new ShippingRateRequest("X", 1)))
                 .isInstanceOf(AccessDeniedException.class);
     }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void duplicateProvinceIsRejectedWithProvinceExisted() {
+        assertThatThrownBy(() -> shipping.create(new ShippingRateRequest(" hà nội ", 1)))
+                .isInstanceOf(AppException.class)
+                .extracting(e -> ((AppException) e).getErrorCode()).isEqualTo(ErrorCode.PROVINCE_EXISTED);
+    }
 }

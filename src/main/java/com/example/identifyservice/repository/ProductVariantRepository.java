@@ -11,6 +11,8 @@ import org.springframework.stereotype.Repository;
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, String> {
     boolean existsBySku(String sku);
 
+    boolean existsByProductIdAndSizeAndColor(String productId, String size, String color);
+
     /** Atomic: returns 0 when there is not enough stock. Does not clear the persistence context. */
     @Modifying
     @Query("update ProductVariant v set v.stock = v.stock - :qty where v.id = :id and v.stock >= :qty")

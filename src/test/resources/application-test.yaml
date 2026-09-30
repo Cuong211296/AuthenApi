@@ -20,6 +20,8 @@ jwt:
 
 shop:
   admin-password: "Admin#12345"
+  expiry-job-interval-ms: 3600000
+  expiry-job-initial-delay-ms: 3600000
 
 logging:
   level:

@@ -28,7 +28,7 @@ public class CartController {
     }
 
     @PutMapping("/items/{variantId}")
-    ApiResponse<CartResponse> update(@PathVariable String variantId, @RequestBody CartItemRequest request) {
+    ApiResponse<CartResponse> update(@PathVariable String variantId, @RequestBody @Valid CartItemRequest request) {
         return ApiResponse.ok(cartService.updateItem(variantId, request.quantity()));
     }
 

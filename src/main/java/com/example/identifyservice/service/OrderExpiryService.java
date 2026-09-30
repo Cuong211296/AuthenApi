@@ -26,7 +26,7 @@ public class OrderExpiryService {
     PaymentService paymentService;
     OrderService orderService;
 
-    @Scheduled(fixedDelayString = "${shop.expiry-job-interval-ms:60000}", initialDelayString = "60000")
+    @Scheduled(fixedDelayString = "${shop.expiry-job-interval-ms:60000}", initialDelayString = "${shop.expiry-job-initial-delay-ms:60000}")
     public void scheduledRun() {
         expireOverdueOrders();
     }

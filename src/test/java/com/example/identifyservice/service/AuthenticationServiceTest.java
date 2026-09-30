@@ -52,6 +52,12 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void nullPasswordForRealUserIsUnauthenticatedAndCounted() {
+        assertUnauthenticated(() -> authService.authenticate(req("carol", null)));
+        assertThat(carol.getLoginAttempts()).isEqualTo(1);
+    }
+
+    @Test
     void successfulLoginRecordsLastLoginAndResetsAttempts() {
         assertUnauthenticated(() -> authService.authenticate(req("carol", "bad")));
         var response = authService.authenticate(req("carol", "password123"));

@@ -21,7 +21,7 @@ public class OrderMailListener {
         try {
             mailService.sendOrderConfirmation(event.orderId());
         } catch (Exception e) {
-            log.error("Could not send confirmation email for order {}: {}", event.orderId(), e.getMessage());
+            log.error("Could not send confirmation email for order {} ({})", event.orderId(), e.getClass().getName());
         }
     }
 }

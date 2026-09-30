@@ -222,6 +222,15 @@ class PaymentServiceTest {
     }
 
     @Test
+    void alreadySuccessfulAttemptReportsAlreadyProcessedEvenForInProgressCode() {
+        payments.startMomoPayment(order.getCode());
+        String attempt = momo.creates.get(0).providerOrderId();
+        assertThat(finalizer.finalizePayment(attempt, 0, order.getTotal(), 42L, "{}")).isEqualTo(FinalizeOutcome.PAID);
+
+        assertThat(finalizer.finalizePayment(attempt, 7000, -1, null, "{}")).isEqualTo(FinalizeOutcome.ALREADY_PROCESSED);
+    }
+
+    @Test
     void successAfterNonTerminalCodeMarksOrderPaid() {
         payments.startMomoPayment(order.getCode());
         String attempt = momo.creates.get(0).providerOrderId();
