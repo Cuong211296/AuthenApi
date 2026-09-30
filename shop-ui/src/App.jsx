@@ -12,6 +12,7 @@ import Checkout from './pages/Checkout.jsx';
 import PaymentResult from './pages/PaymentResult.jsx';
 import Orders from './pages/Orders.jsx';
 import OrderDetail from './pages/OrderDetail.jsx';
+import AdminLayout from './pages/admin/AdminLayout.jsx';
 
 function Shell() {
   const { cart } = useCart();
@@ -29,7 +30,7 @@ function Shell() {
           <Route path="/orders/:code" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/admin/*" element={<ProtectedRoute admin><p>Quản trị (Task 5)</p></ProtectedRoute>} />
+          <Route path="/admin/*" element={<ProtectedRoute admin><AdminLayout /></ProtectedRoute>} />
           <Route path="*" element={<p>Không tìm thấy trang.</p>} />
         </Routes>
       </main>
