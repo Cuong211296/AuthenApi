@@ -1,6 +1,7 @@
 package com.example.identifyservice.dto.request;
 
 import com.example.identifyservice.validator.DobConstraint;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -14,6 +15,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserUpdateRequest {
      String id;
+     @Size(min = 8, message = "PASSWORD_INVALID")
      String password;
      String firstname;
      String lastname;

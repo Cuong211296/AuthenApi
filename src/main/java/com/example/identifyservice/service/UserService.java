@@ -41,14 +41,9 @@ public class UserService {
 
         User user = userMapper.toUser(request);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-
-        //HashSet<String> roles = new HashSet<>();
-        //roles.add(Role.USER.name());
-
-        //user.setRoles(roles);
-//        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-//        user.setCreateTime(String.valueOf(timestamp.getTime()));
-
+        var userRole = roleRepository.findByName("USER")
+                .orElseThrow(() -> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION));
+        user.setRoles(new HashSet<>(java.util.Set.of(userRole)));
 
         return userMapper.toUserResponse(userRepository.save(user));
     }
@@ -60,15 +55,22 @@ public class UserService {
         User user = userRepository.findByUsername(name).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
         return userMapper.toUserResponse(user);
     }
-    @PreAuthorize("#userId == authentication.name or hasRole('ADMIN')")
     public UserResponse updateUser(String userId, UserUpdateRequest request) {
         User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        userMapper.updateUser(user, request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isSelf = authentication != null && user.getUsername().equals(authentication.getName());
+        if (!isAdmin && !isSelf) throw new AppException(ErrorCode.UNAUTHORIZED);
 
-        var roles = roleRepository.findAllById(request.getRoles());
-        user.setRoles(new HashSet<>(roles));
+        userMapper.updateUser(user, request);
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+        if (isAdmin && request.getRoles() != null) {
+            user.setRoles(new HashSet<>(roleRepository.findAllById(request.getRoles())));
+        }
 
         return userMapper.toUserResponse(userRepository.save(user));
     }
