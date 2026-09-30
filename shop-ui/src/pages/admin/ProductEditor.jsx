@@ -1,0 +1,326 @@
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../../api/client.js';
+import Button from '../../components/ui/Button.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
+import Field from '../../components/ui/Field.jsx';
+import Switch from '../../components/ui/Switch.jsx';
+import { Skeleton } from '../../components/ui/Skeleton.jsx';
+import { useToast } from '../../components/ui/Toast.jsx';
+import { PlusIcon } from '../../components/ui/icons.jsx';
+import { countError, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors } from '../../utils/admin.js';
+import { Thumb } from './AdminParts.jsx';
+
+const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', imageUrl: '', active: true };
+const EMPTY_VARIANT = { size: '', color: '', sku: '', stock: '', price: '' };
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+// VariantResponse.price is the effective price: show an override only when it differs from basePrice.
+// `baseline` remembers the saved base price so overrides stay correct while the base price field has unsaved edits.
+const withOverrides = (p) => ({
+  ...p,
+  baseline: p.basePrice,
+  variants: (p.variants || []).map((v) => ({ ...v, priceOverride: overrideOf(v, p.basePrice) })),
+});
+
+const productBody = (p) => ({
+  name: p.name,
+  slug: p.slug,
+  description: p.description || '',
+  categoryId: p.categoryId ?? p.category?.id ?? '', // '' clears the category (the API treats blank as none)
+  basePrice: Number(p.basePrice),
+  imageUrl: p.imageUrl || '',
+  active: p.active,
+});
+
+function validateProduct(p) {
+  const errs = {};
+  if (!p.name.trim()) errs.name = 'Nhập tên sản phẩm';
+  if (!p.slug) errs.slug = 'Nhập slug';
+  else if (!SLUG_RE.test(p.slug)) errs.slug = 'Slug chỉ gồm chữ thường, số và dấu gạch ngang';
+  const price = countError(p.basePrice, 'Giá gốc');
+  if (price) errs.basePrice = price;
+  return errs;
+}
+
+function focusFirstInvalid(root) {
+  requestAnimationFrame(() => root?.querySelector('[aria-invalid="true"]')?.focus());
+}
+
+/**
+ * Slide-over editor for one product ({ id } to edit, { isNew: true } to create).
+ * Loads the detail itself (ignore flag), keeps unsaved variant edits when other parts are saved,
+ * and tells the page through `onChanged` when the list should be refreshed.
+ */
+export default function ProductEditor({ open, target, categories, onClose, onChanged }) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(target.isNew ? { ...EMPTY_PRODUCT, isNew: true, variants: [], baseline: 0 } : null);
+  const [loadError, setLoadError] = useState('');
+  const [error, setError] = useState('');
+  const [errs, setErrs] = useState({});
+  const [busy, setBusy] = useState(''); // 'save' | 'hide' | 'add' | variant id
+  const [confirmHide, setConfirmHide] = useState(false);
+  const [variant, setVariant] = useState(EMPTY_VARIANT);
+  const [addErrs, setAddErrs] = useState({});
+  const [varErrs, setVarErrs] = useState({});
+  const [varError, setVarError] = useState('');
+  const bodyRef = useRef(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!target.id) return undefined;
+    let ignore = false;
+    setLoadError('');
+    api('GET', `/admin/products/${target.id}`)
+      .then((p) => { if (!ignore) setEditing(withOverrides(p)); })
+      .catch((e) => { if (!ignore) setLoadError(e.message); });
+    return () => { ignore = true; };
+  }, [target.id, attempt]);
+
+  const setField = (key) => (e) => setEditing((p) => ({ ...p, [key]: e.target.value }));
+  const patchVariant = (id, patch) => {
+    setEditing((p) => ({ ...p, variants: p.variants.map((v) => (v.id === id ? { ...v, ...patch } : v)) }));
+    setVarErrs((m) => ({ ...m, [id]: undefined }));
+  };
+
+  async function saveProduct(e) {
+    e.preventDefault();
+    const found = validateProduct(editing);
+    setErrs(found);
+    if (Object.keys(found).length) { focusFirstInvalid(bodyRef.current); return; }
+    setError('');
+    setBusy('save');
+    try {
+      const body = productBody(editing);
+      const saved = editing.isNew ? await api('POST', '/admin/products', body) : await api('PUT', `/admin/products/${editing.id}`, body);
+      const fresh = withOverrides(saved);
+      setEditing((prev) => ({ ...fresh, variants: prev.isNew ? fresh.variants : prev.variants }));
+      toast('Đã lưu sản phẩm', { tone: 'success' });
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function deactivate() {
+    setError('');
+    setBusy('hide');
+    try {
+      await api('DELETE', `/admin/products/${editing.id}`);
+      toast('Đã ẩn sản phẩm', { tone: 'success' });
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setConfirmHide(false);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const refetchVariants = async (refreshIds) => {
+    const fresh = await api('GET', `/admin/products/${editing.id}`);
+    setEditing((prev) => ({ ...prev, baseline: fresh.basePrice, variants: mergeVariants(prev.variants, fresh.variants || [], fresh.basePrice, refreshIds) }));
+  };
+
+  async function addVariant(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const found = {};
+    for (const key of ['size', 'color', 'sku']) if (!variant[key].trim()) found[key] = 'Bắt buộc';
+    const stock = countError(variant.stock, 'Tồn kho');
+    if (stock) found.stock = stock;
+    const price = optionalCountError(variant.price, 'Giá riêng');
+    if (price) found.price = price;
+    setAddErrs(found);
+    if (Object.keys(found).length) { focusFirstInvalid(form); return; }
+    setVarError('');
+    setBusy('add');
+    try {
+      await api('POST', `/admin/products/${editing.id}/variants`, {
+        ...variant, stock: Number(variant.stock), price: variant.price === '' ? null : Number(variant.price),
+      });
+      setVariant(EMPTY_VARIANT);
+      await refetchVariants([]);
+      toast('Đã thêm biến thể', { tone: 'success' });
+    } catch (err) {
+      setVarError(err.message);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function saveVariant(v) {
+    const found = variantErrors(v);
+    setVarErrs((m) => ({ ...m, [v.id]: found }));
+    if (Object.keys(found).length) { focusFirstInvalid(bodyRef.current?.querySelector(`[data-variant="${v.id}"]`)); return; }
+    setVarError('');
+    setBusy(v.id);
+    try {
+      await api('PUT', `/admin/variants/${v.id}`, {
+        size: v.size, color: v.color, sku: v.sku, stock: Number(v.stock),
+        price: v.priceOverride === '' || v.priceOverride == null ? null : Number(v.priceOverride), active: v.active,
+      });
+      await refetchVariants([v.id]);
+      toast('Đã lưu biến thể', { tone: 'success' });
+    } catch (err) {
+      setVarError(err.message);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const isNew = Boolean(editing?.isNew);
+  const title = isNew ? 'Sản phẩm mới' : 'Sửa sản phẩm';
+  const canHide = editing && !isNew && editing.active;
+
+  const footer = editing && (
+    confirmHide ? (
+      <div className="ad-confirm" role="group" aria-label="Xác nhận ẩn sản phẩm">
+        <p>Ẩn sản phẩm này khỏi cửa hàng?</p>
+        <Button variant="ghost" size="sm" onClick={() => setConfirmHide(false)} disabled={busy === 'hide'}>Giữ lại</Button>
+        <Button variant="danger" size="sm" className="ad-solid-danger" loading={busy === 'hide'} onClick={deactivate}>Ẩn sản phẩm</Button>
+      </div>
+    ) : (
+      <div className="ad-foot">
+        {canHide && <Button variant="danger" onClick={() => setConfirmHide(true)}>Ẩn sản phẩm</Button>}
+        <span className="ad-foot__spacer" />
+        <Button variant="ghost" onClick={onClose}>Đóng</Button>
+        <Button type="submit" form="ad-product-form" loading={busy === 'save'}>{isNew ? 'Tạo sản phẩm' : 'Lưu'}</Button>
+      </div>
+    )
+  );
+
+  return (
+    <Drawer open={open} onClose={onClose} title={editing ? title : 'Sản phẩm'} footer={footer} width={760}>
+      <div ref={bodyRef}>
+        {loadError && (
+          <div className="ad-error" role="alert">
+            {loadError}{' '}
+            <button type="button" className="ad-linkbtn" onClick={() => setAttempt((n) => n + 1)}>Thử lại</button>
+          </div>
+        )}
+        {!editing && !loadError && (
+          <div className="ad-editor-skel" role="status" aria-label="Đang tải sản phẩm">
+            <Skeleton height={50} radius={12} />
+            <Skeleton height={50} radius={12} />
+            <Skeleton height={50} radius={12} />
+            <Skeleton height={120} radius={12} />
+          </div>
+        )}
+        {editing && (
+          <div className="ad-editor">
+            <form id="ad-product-form" className="ad-section" onSubmit={saveProduct} noValidate>
+              <h3 className="ad-section__title">Thông tin</h3>
+              {error && <p className="ad-error" role="alert" style={{ margin: 0 }}>{error}</p>}
+              <Field
+                label="Tên"
+                value={editing.name}
+                error={errs.name}
+                autoComplete="off"
+                onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value, slug: p.isNew ? slugify(e.target.value) : p.slug }))}
+              />
+              <div className="ad-grid2">
+                <Field label="Slug" value={editing.slug} error={errs.slug} onChange={setField('slug')} autoComplete="off" />
+                <Field as="select" label="Danh mục" value={editing.categoryId ?? editing.category?.id ?? ''} onChange={setField('categoryId')}>
+                  <option value="">(không)</option>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Field>
+              </div>
+              <Field
+                label="Giá gốc (₫)"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                value={editing.basePrice}
+                error={errs.basePrice}
+                onChange={setField('basePrice')}
+              />
+              <div className="ad-imgrow">
+                <Field label="Link ảnh" optional value={editing.imageUrl || ''} onChange={setField('imageUrl')} placeholder="https://" autoComplete="off" />
+                <Thumb key={editing.imageUrl || 'none'} src={editing.imageUrl} name={editing.name} size={92} />
+              </div>
+              <Field as="textarea" label="Mô tả" optional rows={3} value={editing.description || ''} onChange={setField('description')} />
+              <div className="ad-activebox">
+                <div>
+                  <strong>Đang bán</strong>
+                  <p>{editing.active ? 'Hiển thị trong cửa hàng.' : 'Đang ẩn khỏi cửa hàng.'}</p>
+                </div>
+                <Switch checked={editing.active} onChange={(on) => setEditing((p) => ({ ...p, active: on }))} label="Đang bán" hideLabel />
+              </div>
+            </form>
+
+            {!isNew && (
+              <section className="ad-section" aria-labelledby="ad-variants-title">
+                <h3 className="ad-section__title" id="ad-variants-title">Biến thể (size / màu / kho)</h3>
+                {varError && <p className="ad-error" role="alert" style={{ margin: 0 }}>{varError}</p>}
+                {editing.variants.length === 0 ? (
+                  <p className="ad-muted">Chưa có biến thể. Thêm biến thể bên dưới để sản phẩm có thể được mua.</p>
+                ) : (
+                  <>
+                    <div className="ad-varhead" aria-hidden="true">
+                      <span>Size</span><span>Màu</span><span>SKU</span><span>Kho</span><span>Giá riêng</span><span>Bán</span><span />
+                    </div>
+                    <ul className="ad-vars">
+                      {editing.variants.map((v) => {
+                        const ve = varErrs[v.id] || {};
+                        const name = `${v.size} ${v.color}`;
+                        return (
+                          <li key={v.id} className={`ad-var ${v.active ? '' : 'is-off'}`} data-variant={v.id}>
+                            <div className="ad-var__cell ad-var__id ad-strong">{v.size}</div>
+                            <div className="ad-var__cell ad-var__id">{v.color}</div>
+                            <div className="ad-var__cell ad-var__sku">{v.sku}</div>
+                            <div className="ad-var__cell">
+                              <span className="ad-var__lbl">Kho</span>
+                              <input
+                                type="number" min="0" inputMode="numeric" aria-label={`Tồn kho ${name}`}
+                                value={v.stock} aria-invalid={ve.stock ? true : undefined}
+                                aria-describedby={ve.stock || ve.price ? `err-${v.id}` : undefined}
+                                onChange={(e) => patchVariant(v.id, { stock: e.target.value })}
+                              />
+                            </div>
+                            <div className="ad-var__cell">
+                              <span className="ad-var__lbl">Giá riêng</span>
+                              <input
+                                type="number" min="0" inputMode="numeric" aria-label={`Giá riêng ${name}`} placeholder="theo giá gốc"
+                                value={v.priceOverride ?? ''} aria-invalid={ve.price ? true : undefined}
+                                aria-describedby={ve.stock || ve.price ? `err-${v.id}` : undefined}
+                                onChange={(e) => patchVariant(v.id, { priceOverride: e.target.value })}
+                              />
+                            </div>
+                            <div className="ad-var__cell">
+                              <span className="ad-var__lbl">Bán</span>
+                              <Switch checked={v.active} onChange={(on) => patchVariant(v.id, { active: on })} label={`Bán ${name}`} hideLabel />
+                            </div>
+                            <div className="ad-var__cell ad-var__act">
+                              <Button size="sm" variant="ghost" loading={busy === v.id} disabled={busy !== '' && busy !== v.id} onClick={() => saveVariant(v)} aria-label={`Lưu biến thể ${name}`}>Lưu</Button>
+                            </div>
+                            {(ve.stock || ve.price) && <p className="ad-var__err" id={`err-${v.id}`} role="alert">{ve.stock || ve.price}</p>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+
+                <form className="ad-addvar" onSubmit={addVariant} noValidate aria-label="Thêm biến thể">
+                  <div className="ad-addvar__grid">
+                    <Field label="Size" value={variant.size} error={addErrs.size} onChange={(e) => setVariant({ ...variant, size: e.target.value })} autoComplete="off" />
+                    <Field label="Màu" value={variant.color} error={addErrs.color} onChange={(e) => setVariant({ ...variant, color: e.target.value })} autoComplete="off" />
+                    <Field label="SKU" value={variant.sku} error={addErrs.sku} onChange={(e) => setVariant({ ...variant, sku: e.target.value })} autoComplete="off" />
+                    <Field label="Kho" type="number" min="0" inputMode="numeric" value={variant.stock} error={addErrs.stock} onChange={(e) => setVariant({ ...variant, stock: e.target.value })} />
+                    <Field label="Giá riêng" optional type="number" min="0" inputMode="numeric" value={variant.price} error={addErrs.price} placeholder="theo giá gốc" onChange={(e) => setVariant({ ...variant, price: e.target.value })} />
+                  </div>
+                  <div className="ad-addvar__foot">
+                    <Button type="submit" variant="dark" size="sm" iconLeft={<PlusIcon size={16} />} loading={busy === 'add'}>Thêm biến thể</Button>
+                  </div>
+                </form>
+              </section>
+            )}
+          </div>
+        )}
+      </div>
+    </Drawer>
+  );
+}

@@ -21,12 +21,9 @@ import Orders from './pages/Orders.jsx';
 import OrderDetail from './pages/OrderDetail.jsx';
 import AdminLayout from './pages/admin/AdminLayout.jsx';
 
-/** Pages not yet redesigned keep their old markup inside a padded container (styles/legacy.css). */
-const legacy = (element) => <div className="container legacy-page">{element}</div>;
-
 function NotFound() {
   return (
-    <div className="container legacy-page">
+    <div className="container nf">
       <EmptyState
         icon={<SearchIcon size={26} />}
         title="Không tìm thấy trang"
@@ -56,7 +53,7 @@ function AppRoutes() {
             <Route path="/orders/:code" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/admin/*" element={<ProtectedRoute admin>{legacy(<AdminLayout />)}</ProtectedRoute>} />
+            <Route path="/admin/*" element={<ProtectedRoute admin><AdminLayout /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </PageTransition>

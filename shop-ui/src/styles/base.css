@@ -58,7 +58,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* Layout */
 .container { width: 100%; max-width: calc(var(--container) + var(--gutter) * 2); margin-inline: auto; padding-inline: var(--gutter); }
 .stack > * + * { margin-top: var(--stack-gap, 16px); }
-.cluster { display: flex; flex-wrap: wrap; gap: var(--cluster-gap, 12px); align-items: center; }
 
 /* Utilities */
 .sr-only {
@@ -73,9 +72,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .skip-link:focus { top: 12px; }
 .display { font-family: var(--font-display); font-size: var(--fs-display); line-height: var(--lh-display); letter-spacing: -0.03em; font-weight: 500; }
 .eyebrow { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-strong); }
-.text-muted { color: var(--muted); }
-.text-small { font-size: var(--fs-small); }
-.text-accent { color: var(--accent-strong); }
 .tabular { font-variant-numeric: tabular-nums; }
 
 /* Round icon button shared by Drawer, Modal and the header */
@@ -117,3 +113,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 #root { display: flex; flex-direction: column; min-height: 100vh; }
 .app-main { flex: 1; }
 .app-main:focus { outline: none; }
+
+/* 404 page spacing */
+.nf { padding-top: 48px; padding-bottom: 80px; }

@@ -45,3 +45,11 @@ export const PAYMENT_METHOD_LABEL = {
   MOMO: 'MoMo',
   COD: 'Thanh toán khi nhận hàng (COD)',
 };
+
+/** Button text for moving an order to a status (admin). */
+export const ORDER_ACTION_LABEL = {
+  CONFIRMED: 'Xác nhận đơn',
+  SHIPPING: 'Giao hàng',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Huỷ đơn',
+};

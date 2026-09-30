@@ -5,7 +5,6 @@ import { MotionConfig } from 'framer-motion';
 // Global styles first so component stylesheets (imported by App) override them at equal specificity.
 import './styles/tokens.css';
 import './styles/base.css';
-import './styles/legacy.css';
 import App from './App.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
