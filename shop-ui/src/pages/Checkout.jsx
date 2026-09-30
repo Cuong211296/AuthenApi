@@ -3,8 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useCart } from '../context/CartContext.jsx';
 import { formatVnd } from '../utils/money.js';
-
-const PHONE = /^(0|\+84)[0-9]{9}$/;
+import { isValidPhone, normalizeCheckoutForm } from '../utils/checkout.js';
 
 export default function Checkout() {
   const { cart, reload } = useCart();
@@ -39,15 +38,18 @@ export default function Checkout() {
   async function submit(e) {
     e.preventDefault();
     setError('');
-    if (!PHONE.test(form.phone.trim())) return setError('Số điện thoại không hợp lệ (ví dụ 0901234567)');
-    if (!form.province) return setError('Hãy chọn tỉnh/thành');
+    const payload = normalizeCheckoutForm(form);
+    if (!isValidPhone(payload.phone)) return setError('Số điện thoại không hợp lệ (ví dụ 0901234567)');
+    if (!payload.province) return setError('Hãy chọn tỉnh/thành');
     setBusy(true);
     let order;
     try {
-      order = await api('POST', '/orders', { ...form, note: form.note.trim() || null });
+      order = await api('POST', '/orders', payload);
     } catch (err) {
       setBusy(false);
-      return setError(err.message);
+      return setError(err.code === 1011
+        ? 'Thông tin chưa hợp lệ. Hãy kiểm tra lại họ tên, số điện thoại, email và địa chỉ.'
+        : err.message);
     }
     setPlaced(true);
     await reload(); // the server emptied the cart
