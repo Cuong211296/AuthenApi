@@ -62,22 +62,45 @@ public class AuthenticationService {
                 .valid(isValid)
                 .build();
     }
+    private static final int MAX_LOGIN_ATTEMPTS = 5;
+    private static final long LOCK_MINUTES = 15;
+    private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder(10);
+    // Compared against when the username does not exist, so timing does not reveal it.
+    private static final String DUMMY_HASH = PASSWORD_ENCODER.encode("dummy-password");
+
     public AuthenticationResponse authenticate(AuthenticationRequest request){
-        var user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(()-> new AppException(ErrorCode.USER_NOT_EXISTED));
-        var passwordEncoder = new BCryptPasswordEncoder(10);
-        boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPassword());
-        if(!authenticated)
+        var user = userRepository.findByUsername(request.getUsername()).orElse(null);
+        if (user == null) {
+            PASSWORD_ENCODER.matches(String.valueOf(request.getPassword()), DUMMY_HASH);
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Instant now = Instant.now();
+        if (!"ACTIVE".equals(user.getStatus())
+                || (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)))
             throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-        var token = generateToken(user);
+        boolean authenticated = PASSWORD_ENCODER.matches(request.getPassword(), user.getPassword());
+        if (!authenticated) {
+            int attempts = (user.getLoginAttempts() == null ? 0 : user.getLoginAttempts()) + 1;
+            if (attempts >= MAX_LOGIN_ATTEMPTS) {
+                user.setLockedUntil(now.plus(LOCK_MINUTES, ChronoUnit.MINUTES));
+                attempts = 0;
+            }
+            user.setLoginAttempts(attempts);
+            userRepository.save(user);
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        user.setLoginAttempts(0);
+        user.setLockedUntil(null);
+        user.setLastLoginAt(now);
+        userRepository.save(user);
 
         return AuthenticationResponse.builder()
-                .token(token)
+                .token(generateToken(user))
                 .authenticated(true)
                 .build();
-
-
     }
     private String generateToken(User user){
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);

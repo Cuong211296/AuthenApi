@@ -69,6 +69,8 @@ public class User {
     @Column(columnDefinition = "INT DEFAULT 0")
     Integer loginAttempts;
 
+    Instant lockedUntil; // temporary lock after repeated failed logins
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_role",
