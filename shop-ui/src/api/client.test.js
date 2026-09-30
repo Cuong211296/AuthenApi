@@ -15,6 +15,10 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('api client', () => {
   it('unwraps the result of a successful response', async () => {
     vi.stubGlobal('fetch', vi.fn(() => respond(200, { code: 1000, result: { hello: 'world' } })));
@@ -52,6 +56,44 @@ describe('api client', () => {
     window.removeEventListener('auth:expired', expired);
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
     expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 401 for an old token does not clear a newer stored token', async () => {
+    const oldToken = makeJwt(nowSec() + 3600);
+    const newToken = makeJwt(nowSec() + 7200);
+    tokenStore.set(oldToken);
+    vi.stubGlobal('fetch', vi.fn(() => {
+      tokenStore.set(newToken); // a new login lands while the request is in flight
+      return respond(401, { code: 1006, message: 'Unauthenticated' });
+    }));
+    const expired = vi.fn();
+    window.addEventListener('auth:expired', expired);
+    await api('GET', '/cart').catch(() => {});
+    window.removeEventListener('auth:expired', expired);
+    expect(localStorage.getItem(TOKEN_KEY)).toBe(newToken);
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('when refresh fails the old token is used and its 401 ends the session', async () => {
+    const oldToken = makeJwt(nowSec() + 60);
+    tokenStore.set(oldToken);
+    const fetchMock = vi.fn((url) => (url.endsWith('/auth/refresh')
+      ? respond(401, { code: 1006, message: 'Unauthenticated' })
+      : respond(401, { code: 1006, message: 'Unauthenticated' })));
+    vi.stubGlobal('fetch', fetchMock);
+    const expired = vi.fn();
+    window.addEventListener('auth:expired', expired);
+    await api('GET', '/cart').catch(() => {});
+    window.removeEventListener('auth:expired', expired);
+    const apiCall = fetchMock.mock.calls.find(([u]) => !u.endsWith('/auth/refresh'));
+    expect(apiCall[1].headers.Authorization).toBe(`Bearer ${oldToken}`);
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null for a 204 response', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })));
+    expect(await api('DELETE', '/x', undefined, { auth: false })).toBeNull();
   });
 
   it('a failed login (401, auth:false) does not end an existing session', async () => {

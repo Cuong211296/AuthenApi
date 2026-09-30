@@ -24,6 +24,8 @@ export default function OrderDetail() {
     setError('');
     try {
       const { payUrl } = await api('POST', `/orders/${code}/pay/momo`);
+      if (typeof payUrl !== 'string' || !payUrl.startsWith('https://'))
+        throw new Error('Không nhận được liên kết thanh toán hợp lệ');
       window.location.assign(payUrl);
     } catch (e) {
       setError(e.message);

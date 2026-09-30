@@ -54,6 +54,8 @@ export default function Checkout() {
     if (form.paymentMethod === 'COD') return navigate(`/orders/${order.code}`, { replace: true, state: { placed: true } });
     try {
       const { payUrl } = await api('POST', `/orders/${order.code}/pay/momo`);
+      if (typeof payUrl !== 'string' || !payUrl.startsWith('https://'))
+        throw new Error('Không nhận được liên kết thanh toán hợp lệ');
       window.location.assign(payUrl);
     } catch (err) {
       // The order exists; let the customer retry from its page.

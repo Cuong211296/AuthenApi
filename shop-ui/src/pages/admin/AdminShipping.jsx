@@ -25,7 +25,7 @@ export default function AdminShipping() {
   async function save(rate) {
     setError(''); setMessage('');
     try {
-      await api('PUT', `/admin/shipping-rates/${rate.id}`, { province: rate.province, fee: Number(fees[rate.id]) });
+      await api('PUT', `/admin/shipping-rates/${rate.id}`, { fee: Number(fees[rate.id]) });
       setMessage(`Đã lưu ${rate.province}`);
     } catch (e) { setError(e.message); }
   }

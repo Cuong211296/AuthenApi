@@ -86,7 +86,8 @@ export async function api(method, path, body, { auth = true } = {}) {
   try {
     return await send(method, path, body, token);
   } catch (e) {
-    if (auth && token && e instanceof ApiError && e.status === 401) {
+    // Only end the session if the rejected token is still the stored one (a newer login must survive).
+    if (auth && token && e instanceof ApiError && e.status === 401 && tokenStore.get() === token) {
       tokenStore.clear();
       window.dispatchEvent(new Event('auth:expired'));
     }
