@@ -4,6 +4,7 @@ import com.example.identifyservice.dto.request.CheckoutRequest;
 import com.example.identifyservice.entity.Product;
 import com.example.identifyservice.entity.ProductVariant;
 import com.example.identifyservice.entity.User;
+import com.example.identifyservice.enums.OrderStatus;
 import com.example.identifyservice.enums.PaymentMethod;
 import com.example.identifyservice.exception.AppException;
 import com.example.identifyservice.repository.OrderRepository;
@@ -25,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,11 +50,17 @@ class OrderConcurrencyTest {
                 username, "n/a", List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
 
-    private Callable<String> checkoutAs(String username, String variantId, CountDownLatch go) {
+    private void adminLogin() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "admin", "n/a", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+    }
+
+    private Callable<String> checkoutAs(String username, String variantId, CountDownLatch ready, CountDownLatch go) {
         return () -> {
             login(username);
             try {
                 cartService.addItem(variantId, 1);
+                ready.countDown();
                 go.await();
                 orderService.checkout(request());
                 return "OK";
@@ -73,16 +81,73 @@ class OrderConcurrencyTest {
         User u2 = data.user("racer2-" + tag);
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        CountDownLatch go = new CountDownLatch(1);
-        Future<String> f1 = pool.submit(checkoutAs(u1.getUsername(), v.getId(), go));
-        Future<String> f2 = pool.submit(checkoutAs(u2.getUsername(), v.getId(), go));
-        Thread.sleep(300);
-        go.countDown();
-        List<String> results = new ArrayList<>(List.of(f1.get(), f2.get()));
-        pool.shutdown();
-
-        assertThat(results).containsExactlyInAnyOrder("OK", "OUT_OF_STOCK");
+        try {
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch go = new CountDownLatch(1);
+            Future<String> f1 = pool.submit(checkoutAs(u1.getUsername(), v.getId(), ready, go));
+            Future<String> f2 = pool.submit(checkoutAs(u2.getUsername(), v.getId(), ready, go));
+            assertThat(ready.await(20, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            List<String> results = new ArrayList<>(List.of(f1.get(30, TimeUnit.SECONDS), f2.get(30, TimeUnit.SECONDS)));
+            assertThat(results).containsExactlyInAnyOrder("OK", "OUT_OF_STOCK");
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
+        }
         assertThat(variants.findById(v.getId()).orElseThrow().getStock()).isZero();
+    }
+
+    @Test
+    void concurrentAdminCancelRestocksExactlyOnce() throws Exception {
+        String tag = UUID.randomUUID().toString().substring(0, 8);
+        Product p = data.product("cancel-" + tag, 100_000, true);
+        ProductVariant v = data.variant(p, "M", "black", 5, null);
+        User u = data.user("canceller-" + tag);
+
+        login(u.getUsername());
+        String code;
+        try {
+            cartService.addItem(v.getId(), 2);
+            code = orderService.checkout(request()).code();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+        assertThat(variants.findById(v.getId()).orElseThrow().getStock()).isEqualTo(3);
+        adminLogin();
+        try {
+            orderService.adminUpdateStatus(code, OrderStatus.CONFIRMED);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch go = new CountDownLatch(1);
+            Callable<String> cancel = () -> {
+                adminLogin();
+                try {
+                    ready.countDown();
+                    go.await();
+                    orderService.adminUpdateStatus(code, OrderStatus.CANCELLED);
+                    return "OK";
+                } catch (AppException e) {
+                    return e.getErrorCode().name();
+                } finally {
+                    SecurityContextHolder.clearContext();
+                }
+            };
+            Future<String> f1 = pool.submit(cancel);
+            Future<String> f2 = pool.submit(cancel);
+            assertThat(ready.await(20, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            List<String> results = List.of(f1.get(30, TimeUnit.SECONDS), f2.get(30, TimeUnit.SECONDS));
+            assertThat(results).containsExactlyInAnyOrder("OK", "INVALID_ORDER_STATUS");
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
+        }
+        assertThat(variants.findById(v.getId()).orElseThrow().getStock()).isEqualTo(5);
     }
 
     @Test

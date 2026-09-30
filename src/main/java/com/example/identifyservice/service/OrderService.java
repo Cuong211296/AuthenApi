@@ -128,15 +128,23 @@ public class OrderService {
     @Transactional
     public OrderResponse adminUpdateStatus(String code, OrderStatus to) {
         Order order = orderRepository.findByCode(code).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
-        if (!order.getStatus().canTransitionTo(to)) throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        OrderStatus from = order.getStatus();
+        if (!from.canTransitionTo(to)) throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        String id = order.getId();
 
-        if (to == OrderStatus.CANCELLED) restock(order);
-        if (to == OrderStatus.COMPLETED && order.getPaymentMethod() == PaymentMethod.COD) {
-            order.setPaymentStatus(PaymentStatus.PAID);
-            order.setPaidAt(Instant.now());
+        if (from == OrderStatus.PENDING_PAYMENT) {
+            // only PENDING_PAYMENT -> CANCELLED is allowed; atomic and restocks exactly once
+            if (!cancelPendingPayment(id, PaymentStatus.UNPAID)) throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        } else {
+            List<OrderItem> lines = List.copyOf(order.getItems()); // load before the clearing update
+            if (orderRepository.transitionStatus(id, from, to) == 0)
+                throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+            if (to == OrderStatus.CANCELLED)
+                lines.forEach(i -> variantRepository.incrementStock(i.getVariantId(), i.getQuantity()));
+            if (to == OrderStatus.COMPLETED)
+                orderRepository.markCodPaid(id, Instant.now(), PaymentMethod.COD, PaymentStatus.PAID, PaymentStatus.UNPAID);
         }
-        order.setStatus(to);
-        return OrderResponse.from(orderRepository.save(order));
+        return OrderResponse.from(orderRepository.findByCode(code).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND)));
     }
 
     /**
@@ -151,10 +159,6 @@ public class OrderService {
         if (orderRepository.cancelPending(orderId, finalPaymentStatus) == 0) return false;
         lines.forEach(i -> variantRepository.incrementStock(i.getVariantId(), i.getQuantity()));
         return true;
-    }
-
-    private void restock(Order order) {
-        order.getItems().forEach(i -> variantRepository.incrementStock(i.getVariantId(), i.getQuantity()));
     }
 
     private Pageable pageable(int page, int size) {

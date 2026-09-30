@@ -9,6 +9,7 @@ import com.example.identifyservice.enums.PaymentMethod;
 import com.example.identifyservice.enums.PaymentStatus;
 import com.example.identifyservice.exception.AppException;
 import com.example.identifyservice.exception.ErrorCode;
+import com.example.identifyservice.repository.OrderRepository;
 import com.example.identifyservice.repository.ProductVariantRepository;
 import com.example.identifyservice.testsupport.TestDataFactory;
 import jakarta.persistence.EntityManager;
@@ -39,6 +40,7 @@ class OrderServiceTest {
     @Autowired TestDataFactory data;
     @Autowired ProductVariantRepository variants;
     @Autowired EntityManager em;
+    @Autowired OrderRepository orderRepository;
 
     Product tee;
     ProductVariant m;
@@ -181,6 +183,41 @@ class OrderServiceTest {
         em.clear();
         assertThat(variants.findById(m.getId()).orElseThrow().getStock()).isEqualTo(5);
         assertThat(orders.getMyOrder(order.code()).paymentStatus()).isEqualTo(PaymentStatus.EXPIRED);
+    }
+
+    @Test
+    void adminCancelOfPendingPaymentRestocksOnceKeepsUnpaidAndBlocksLatePayment() {
+        cart.addItem(m.getId(), 2);
+        String code = orders.checkout(request(PaymentMethod.MOMO, "Hà Nội")).code();
+        String orderId = orders.requireOwnedOrder(code).getId();
+
+        actAs("admin", "ROLE_ADMIN");
+        OrderResponse cancelled = orders.adminUpdateStatus(code, OrderStatus.CANCELLED);
+        assertThat(cancelled.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(cancelled.paymentStatus()).isEqualTo(PaymentStatus.UNPAID);
+        assertThatThrownBy(() -> orders.adminUpdateStatus(code, OrderStatus.CANCELLED))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.INVALID_ORDER_STATUS);
+
+        assertThat(orderRepository.markPaid(orderId, Instant.now())).isZero();
+        em.flush();
+        em.clear();
+        assertThat(variants.findById(m.getId()).orElseThrow().getStock()).isEqualTo(5);
+        assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void markPaidMovesPendingPaymentOrderToPendingConfirmOnce() {
+        cart.addItem(m.getId(), 1);
+        String code = orders.checkout(request(PaymentMethod.MOMO, "Hà Nội")).code();
+        String orderId = orders.requireOwnedOrder(code).getId();
+
+        assertThat(orderRepository.markPaid(orderId, Instant.now())).isEqualTo(1);
+        assertThat(orderRepository.markPaid(orderId, Instant.now())).isZero();
+        var paid = orderRepository.findById(orderId).orElseThrow();
+        assertThat(paid.getStatus()).isEqualTo(OrderStatus.PENDING_CONFIRM);
+        assertThat(paid.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(paid.getPaidAt()).isNotNull();
+        assertThat(orders.cancelPendingPayment(orderId, PaymentStatus.EXPIRED)).isFalse();
     }
 
     @Test

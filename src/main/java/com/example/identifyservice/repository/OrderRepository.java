@@ -45,4 +45,20 @@ public interface OrderRepository extends JpaRepository<Order, String> {
               and o.status = com.example.identifyservice.enums.OrderStatus.PENDING_PAYMENT
             """)
     int cancelPending(@Param("id") String id, @Param("paymentStatus") PaymentStatus paymentStatus);
+
+    /** Atomic status change: succeeds only while the order is still in {@code from}. Returns rows changed (0 or 1). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update ShopOrder o set o.status = :to where o.id = :id and o.status = :from")
+    int transitionStatus(@Param("id") String id, @Param("from") OrderStatus from, @Param("to") OrderStatus to);
+
+    /** Marks a COD order paid exactly once (only while UNPAID). Returns rows changed (0 or 1). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ShopOrder o
+            set o.paymentStatus = :paid, o.paidAt = :now
+            where o.id = :id and o.paymentMethod = :method and o.paymentStatus = :unpaid
+            """)
+    int markCodPaid(@Param("id") String id, @Param("now") Instant now,
+                    @Param("method") com.example.identifyservice.enums.PaymentMethod method,
+                    @Param("paid") PaymentStatus paid, @Param("unpaid") PaymentStatus unpaid);
 }
