@@ -1,13 +1,19 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
+// Global styles first so component stylesheets (imported by App) override them at equal specificity.
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/legacy.css';
 import App from './App.jsx';
-import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <MotionConfig reducedMotion="user">
+        <App />
+      </MotionConfig>
     </BrowserRouter>
   </React.StrictMode>,
 );

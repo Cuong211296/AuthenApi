@@ -1,0 +1,119 @@
+/* Reset, typography, form defaults, focus ring, reduced motion and small utilities. */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: calc(var(--header-h) + 16px); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+img, picture, svg, video { display: block; max-width: 100%; }
+img { height: auto; }
+input, button, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; line-height: 1.15; letter-spacing: -0.015em; text-wrap: balance; }
+h1 { font-size: var(--fs-h1); }
+h2 { font-size: var(--fs-h2); }
+h3 { font-size: var(--fs-h3); }
+p { text-wrap: pretty; }
+
+a { color: inherit; text-decoration: none; }
+p a, .link { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+p a:hover, .link:hover { color: var(--ink); }
+
+::selection { background: var(--accent-soft); color: var(--ink); }
+
+/* Inputs */
+input:where(:not([type='checkbox']):not([type='radio'])), select, textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  transition: border-color var(--t-micro) var(--ease), box-shadow var(--t-micro) var(--ease);
+}
+input:hover, select:hover, textarea:hover { border-color: #d8cfc2; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--ink-soft); }
+input::placeholder, textarea::placeholder { color: #9a9087; }
+input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); width: 18px; height: 18px; }
+
+/* Focus ring: visible for keyboard users on every interactive element */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+/* Fields: the 1px border plus a 1px shadow form a 2px accent ring, with a soft halo outside */
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 5px var(--accent-soft); }
+
+/* Layout */
+.container { width: 100%; max-width: calc(var(--container) + var(--gutter) * 2); margin-inline: auto; padding-inline: var(--gutter); }
+.stack > * + * { margin-top: var(--stack-gap, 16px); }
+.cluster { display: flex; flex-wrap: wrap; gap: var(--cluster-gap, 12px); align-items: center; }
+
+/* Utilities */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: 16px; top: -60px; z-index: 100;
+  padding: 10px 16px; border-radius: var(--r-pill); background: var(--ink); color: #fff;
+  transition: top var(--t-micro) var(--ease);
+}
+.skip-link:focus { top: 12px; }
+.display { font-family: var(--font-display); font-size: var(--fs-display); line-height: var(--lh-display); letter-spacing: -0.03em; font-weight: 500; }
+.eyebrow { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-strong); }
+.text-muted { color: var(--muted); }
+.text-small { font-size: var(--fs-small); }
+.text-accent { color: var(--accent-strong); }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Round icon button shared by Drawer, Modal and the header */
+.ui-icon-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  transition: background-color var(--t-micro) var(--ease), transform var(--t-micro) var(--ease);
+}
+.ui-icon-btn:hover { background: var(--ink-soft); }
+.ui-icon-btn:active { transform: scale(0.94); }
+
+/* Spinner shared by Button and inline loaders */
+.spinner {
+  width: 1em; height: 1em; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: spin 0.7s linear infinite; display: inline-block; flex: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Reduced motion: keep everything usable and still */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spinner { animation-duration: 1.4s !important; animation-iteration-count: infinite !important; }
+}
+
+/* App shell */
+#root { display: flex; flex-direction: column; min-height: 100vh; }
+.app-main { flex: 1; }
+.app-main:focus { outline: none; }

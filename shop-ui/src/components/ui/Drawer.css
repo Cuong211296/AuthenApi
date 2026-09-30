@@ -1,0 +1,40 @@
+.ui-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.ui-drawer-root { position: fixed; inset: 0; z-index: 80; }
+
+.ui-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--drawer-w, 440px), 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  box-shadow: var(--sh-3);
+  outline: none;
+}
+@media (min-width: 640px) {
+  .ui-drawer { border-radius: var(--r-lg) 0 0 var(--r-lg); }
+}
+.ui-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.ui-drawer__title { font-size: 1.375rem; }
+.ui-drawer__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px; }
+.ui-drawer__foot {
+  padding: 16px 24px max(20px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}

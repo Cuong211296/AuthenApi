@@ -1,0 +1,68 @@
+/* Design tokens: the single source for color, type, radius, shadow and motion values. */
+:root {
+  /* Color */
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --surface-2: #f3eee6;
+  --ink: #14110f;
+  --muted: #6f675f;
+  --line: #e9e2d8;
+  --accent: #c8501e;
+  --accent-strong: #a83f14;
+  --accent-soft: #f7e3d8;
+  --success: #1f7a4d;
+  --danger: #b3261e;
+  --warn: #b7791f;
+  --info: #2b5fa8;
+
+  --success-soft: #e3f1e9;
+  --danger-soft: #f9e4e2;
+  --warn-soft: #f8edd9;
+  --info-soft: #e3ebf6;
+  --ink-soft: rgba(20, 17, 15, 0.06);
+  --overlay: rgba(20, 17, 15, 0.42);
+  --glass: rgba(250, 247, 242, 0.78);
+
+  /* Type */
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fs-display: clamp(2.6rem, 6vw, 5rem);
+  --fs-h1: clamp(2rem, 4vw, 3rem);
+  --fs-h2: 1.5rem;
+  --fs-h3: 1.125rem;
+  --fs-body: 1rem;
+  --fs-small: 0.875rem;
+  --fs-xs: 0.75rem;
+  --lh-display: 1.02;
+  --lh-body: 1.6;
+
+  /* Radius */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-pill: 999px;
+
+  /* Shadow (warm, layered) */
+  --sh-1: 0 1px 2px rgba(20, 17, 15, 0.04), 0 2px 8px rgba(20, 17, 15, 0.04);
+  --sh-2: 0 2px 6px rgba(20, 17, 15, 0.05), 0 18px 40px -12px rgba(20, 17, 15, 0.18);
+  --sh-3: 0 10px 30px rgba(20, 17, 15, 0.12), 0 40px 80px -20px rgba(20, 17, 15, 0.3);
+
+  /* Layout */
+  --container: 1200px;
+  --gutter: 24px;
+  --header-h: 72px;
+  --tap: 44px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-micro: 0.15s;
+  --t-std: 0.3s;
+  --t-page: 0.5s;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 16px;
+    --header-h: 64px;
+  }
+}

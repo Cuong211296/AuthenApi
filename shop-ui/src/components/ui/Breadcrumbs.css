@@ -1,0 +1,6 @@
+.ui-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0; list-style: none; font-size: var(--fs-small); color: var(--muted); }
+.ui-crumbs li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.ui-crumbs a { color: var(--muted); transition: color var(--t-micro) var(--ease); }
+.ui-crumbs a:hover { color: var(--ink); }
+.ui-crumbs [aria-current='page'] { color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
+.ui-crumbs__sep { color: #b8afa5; flex: none; }

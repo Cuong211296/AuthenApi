@@ -1,0 +1,39 @@
+.ui-stepper {
+  --step-h: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  height: var(--step-h);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+.ui-stepper--sm { --step-h: 36px; }
+.ui-stepper__btn {
+  display: grid;
+  place-items: center;
+  width: var(--step-h);
+  height: 100%;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink);
+  transition: background-color var(--t-micro) var(--ease), transform var(--t-micro) var(--ease);
+}
+.ui-stepper__btn:hover:not(:disabled) { background: var(--surface-2); }
+.ui-stepper__btn:active:not(:disabled) { transform: scale(0.92); }
+.ui-stepper__btn:disabled { color: #c3bab0; }
+.ui-stepper .ui-stepper__input {
+  width: 3ch;
+  min-width: 36px;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-weight: 600;
+  box-shadow: none;
+}
+.ui-stepper .ui-stepper__input:focus { box-shadow: none; }
+.ui-stepper:focus-within { border-color: var(--ink); }

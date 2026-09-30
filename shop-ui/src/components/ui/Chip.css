@@ -1,0 +1,27 @@
+.ui-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  isolation: isolate;
+  transition: border-color var(--t-micro) var(--ease), color var(--t-std) var(--ease), background-color var(--t-std) var(--ease);
+}
+.ui-chip:hover:not(:disabled) { border-color: var(--ink); }
+.ui-chip.is-selected { color: #fff; border-color: var(--ink); background: var(--ink); }
+.ui-chip:disabled { color: #b3aaa0; background: var(--bg); text-decoration: line-through; cursor: not-allowed; }
+
+/* In a group, the dark background is a shared sliding element instead */
+.ui-chip--in-group.is-selected { background: var(--surface); }
+.ui-chip__highlight { position: absolute; inset: -1px; z-index: -1; border-radius: inherit; background: var(--ink); }
+.ui-chip__label { position: relative; }
+
+.ui-toggle-group { display: flex; flex-wrap: wrap; gap: 8px; }

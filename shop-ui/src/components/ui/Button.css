@@ -1,0 +1,56 @@
+.ui-btn {
+  --btn-h: var(--tap);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: var(--btn-h);
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  letter-spacing: 0.005em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
+  transition: background-color var(--t-std) var(--ease), color var(--t-std) var(--ease),
+    border-color var(--t-std) var(--ease), box-shadow var(--t-std) var(--ease), transform var(--t-micro) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.ui-btn:active:not(:disabled) { transform: scale(0.97); }
+.ui-btn:disabled, .ui-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+.ui-btn.is-loading { opacity: 0.85; cursor: progress; }
+
+.ui-btn--sm { --btn-h: 36px; padding: 0 16px; font-size: var(--fs-small); gap: 8px; }
+.ui-btn--lg { --btn-h: 54px; padding: 0 30px; font-size: 1rem; }
+.ui-btn--block { width: 100%; }
+
+.ui-btn--primary { background: var(--accent); color: #fff; box-shadow: 0 6px 18px -8px rgba(200, 80, 30, 0.7); }
+.ui-btn--primary:hover:not(:disabled) { background: var(--accent-strong); box-shadow: 0 10px 24px -10px rgba(168, 63, 20, 0.8); }
+/* subtle shine sweeping across on hover */
+.ui-btn--primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s var(--ease);
+}
+.ui-btn--primary:hover:not(:disabled)::after { transform: translateX(120%); }
+
+.ui-btn--dark { background: var(--ink); color: #fff; }
+.ui-btn--dark:hover:not(:disabled) { background: #2d2724; }
+
+.ui-btn--ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.ui-btn--ghost:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); }
+
+.ui-btn--danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
+.ui-btn--danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
+
+.ui-btn__label { display: inline-flex; align-items: center; }
+.ui-btn svg { flex: none; transition: transform var(--t-std) var(--ease); }
+.ui-btn:hover:not(:disabled) .ui-btn__label + svg { transform: translateX(3px); }

@@ -1,0 +1,27 @@
+.ui-skel {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+}
+.ui-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  transform: translateX(-100%);
+  animation: ui-skel-shimmer 1.4s var(--ease) infinite;
+}
+.ui-skel--block { width: 100%; height: 120px; }
+.ui-skel--line { height: 14px; border-radius: var(--r-pill); }
+.ui-skel--circle { border-radius: 50%; width: 40px; height: 40px; }
+
+@keyframes ui-skel-shimmer { to { transform: translateX(100%); } }
+
+.ui-skel-card { display: flex; flex-direction: column; gap: 10px; }
+.ui-skel-card .ui-skel-card__media { height: auto; aspect-ratio: 3 / 4; border-radius: var(--r-md); margin-bottom: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skel::after { display: none; }
+}

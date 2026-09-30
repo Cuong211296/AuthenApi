@@ -1,0 +1,23 @@
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(40px, 8vw, 72px) 24px;
+  border: 1px dashed #ddd3c6;
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, var(--surface), var(--bg));
+}
+.ui-empty__art { position: relative; display: grid; place-items: center; width: 88px; height: 88px; margin-bottom: 20px; }
+.ui-empty__ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--accent-soft), var(--surface-2) 70%);
+}
+.ui-empty__icon {
+  position: relative; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%;
+  background: var(--surface); color: var(--accent-strong); box-shadow: var(--sh-1);
+}
+.ui-empty--danger .ui-empty__icon { color: var(--danger); }
+.ui-empty__title { font-size: 1.5rem; margin-bottom: 8px; }
+.ui-empty__text { max-width: 42ch; color: var(--muted); }
+.ui-empty__action { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
