@@ -7,7 +7,7 @@ export default function Home() {
   const [params, setParams] = useSearchParams();
   const category = params.get('category') || '';
   const q = params.get('q') || '';
-  const page = Number(params.get('page') || 0);
+  const page = Math.max(0, parseInt(params.get('page') ?? '0', 10) || 0);
 
   const [categories, setCategories] = useState([]);
   const [data, setData] = useState(null);
@@ -15,15 +15,21 @@ export default function Home() {
   const [search, setSearch] = useState(q);
 
   useEffect(() => {
-    api('GET', '/categories', undefined, { auth: false }).then(setCategories).catch(() => {});
+    let ignore = false;
+    api('GET', '/categories', undefined, { auth: false })
+      .then((r) => { if (!ignore) setCategories(r); })
+      .catch(() => {});
+    return () => { ignore = true; };
   }, []);
 
   useEffect(() => {
+    let ignore = false;
     setError('');
     const query = new URLSearchParams({ category, q, page: String(page), size: '12' });
     api('GET', `/products?${query}`, undefined, { auth: false })
-      .then(setData)
-      .catch((e) => setError(e.message));
+      .then((r) => { if (!ignore) setData(r); })
+      .catch((e) => { if (!ignore) setError(e.message); });
+    return () => { ignore = true; };
   }, [category, q, page]);
 
   const update = (next) => setParams({ category, q, page: '0', ...next }, { replace: true });
@@ -31,9 +37,9 @@ export default function Home() {
   return (
     <>
       <div className="chips">
-        <button className={`chip ${category === '' ? 'on' : ''}`} onClick={() => update({ category: '' })}>Tất cả</button>
+        <button aria-pressed={category === ''} className={`chip ${category === '' ? 'on' : ''}`} onClick={() => update({ category: '' })}>Tất cả</button>
         {categories.map((c) => (
-          <button key={c.id} className={`chip ${category === c.slug ? 'on' : ''}`} onClick={() => update({ category: c.slug })}>{c.name}</button>
+          <button key={c.id} aria-pressed={category === c.slug} className={`chip ${category === c.slug ? 'on' : ''}`} onClick={() => update({ category: c.slug })}>{c.name}</button>
         ))}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); update({ q: search.trim() }); }} className="row" style={{ marginBottom: 12 }}>

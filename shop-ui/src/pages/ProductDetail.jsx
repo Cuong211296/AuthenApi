@@ -22,9 +22,13 @@ export default function ProductDetail() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let ignore = false;
     setProduct(null);
     setError('');
-    api('GET', `/products/${slug}`, undefined, { auth: false }).then(setProduct).catch((e) => setError(e.message));
+    api('GET', `/products/${slug}`, undefined, { auth: false })
+      .then((r) => { if (!ignore) setProduct(r); })
+      .catch((e) => { if (!ignore) setError(e.message); });
+    return () => { ignore = true; };
   }, [slug]);
 
   const variants = product?.variants ?? [];
@@ -63,7 +67,7 @@ export default function ProductDetail() {
         <strong>Size</strong>
         <div className="chips">
           {sizes.map((s) => (
-            <button key={s} className={`chip ${size === s ? 'on' : ''}`} onClick={() => { setSize(s); setColor(''); }}>{s}</button>
+            <button key={s} aria-pressed={size === s} className={`chip ${size === s ? 'on' : ''}`} onClick={() => { setSize(s); setColor(''); }}>{s}</button>
           ))}
         </div>
 
@@ -71,7 +75,7 @@ export default function ProductDetail() {
         <div className="chips">
           {!size && <span className="muted">Chọn size trước</span>}
           {colors.map((c) => (
-            <button key={c.color} disabled={!c.available} className={`chip ${color === c.color ? 'on' : ''}`} onClick={() => setColor(c.color)}>{c.color}</button>
+            <button key={c.color} aria-pressed={color === c.color} disabled={!c.available} className={`chip ${color === c.color ? 'on' : ''}`} onClick={() => setColor(c.color)}>{c.color}</button>
           ))}
         </div>
 

@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext.jsx';
 import { formatVnd } from '../utils/money.js';
 
 export default function Cart() {
-  const { cart, update, remove } = useCart();
+  const { cart, update, remove, reload } = useCart();
   const navigate = useNavigate();
   const [error, setError] = useState('');
 
+  useEffect(() => { reload(); }, [reload]);
+
   const run = async (fn) => {
     setError('');
-    try { await fn(); } catch (e) { setError(e.message); }
+    try { await fn(); return true; } catch (e) { setError(e.message); return false; }
   };
   const hasUnavailable = cart.items.some((i) => !i.available);
 
@@ -30,8 +32,16 @@ export default function Cart() {
               <td><Link to={`/products/${i.productSlug}`}>{i.productName}</Link><div className="muted">{i.size} / {i.color}{!i.available && ' · không đủ hàng'}</div></td>
               <td>{formatVnd(i.unitPrice)}</td>
               <td>
-                <input type="number" min="1" max="99" defaultValue={i.quantity} style={{ width: 70 }}
-                  onBlur={(e) => { const q = Number(e.target.value); if (q >= 1 && q !== i.quantity) run(() => update(i.variantId, q)); }} />
+                <input key={`${i.variantId}-${i.quantity}`} type="number" min="1" max="99" defaultValue={i.quantity} style={{ width: 70 }}
+                  onBlur={async (e) => {
+                    const input = e.target;
+                    const q = Number(input.value);
+                    if (q >= 1 && q !== i.quantity) {
+                      if (!(await run(() => update(i.variantId, q)))) input.value = i.quantity;
+                    } else {
+                      input.value = i.quantity;
+                    }
+                  }} />
               </td>
               <td className="right">{formatVnd(i.lineTotal)}</td>
               <td><button className="btn btn-danger" onClick={() => run(() => remove(i.variantId))}>Xoá</button></td>

@@ -14,7 +14,7 @@ export function CartProvider({ children }) {
     try {
       setCart(await api('GET', '/cart'));
     } catch {
-      setCart(EMPTY);
+      // keep the previous cart on a transient error
     }
   }, [session]);
 
