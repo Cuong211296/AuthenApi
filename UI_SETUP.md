@@ -1,5 +1,7 @@
 # 🎨 Modern Login UI - Setup Guide
 
+**Note:** This document is superseded by the React app in `shop-ui/`; see [CLAUDE.md § Frontend (shop-ui)](CLAUDE.md#frontend-shop-ui) for the current setup.
+
 ## Overview
 
 This project includes a modern, responsive login & dashboard UI built with vanilla HTML5, CSS3, and JavaScript. No build tools required!

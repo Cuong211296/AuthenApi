@@ -166,48 +166,21 @@ Design: `docs/superpowers/specs/2026-09-30-clothing-shop-design.md` (see its sec
 - Tests inherit from Spring Boot test base; see `IdentifyServiceApplicationTests`
 - JWT-protected endpoints require valid tokens in `Authorization: Bearer <token>` header
 
-## Frontend UI - Modern Login & Dashboard
+## Frontend (shop-ui)
 
-A beautiful, responsive web UI for authentication built with vanilla HTML5/CSS3/JavaScript (no build step required).
+React + Vite SPA for the clothing shop storefront and admin area (supersedes `login.html`, `signup.html`, `dashboard.html`, `test-connection.html`; keep these legacy files).
 
-**Files:**
-- [login.html](login.html) - Modern login page with gradient design, real-time validation, password toggle, remember username
-- [dashboard.html](dashboard.html) - User dashboard showing JWT token, user info, roles/permissions, token refresh/invalidation
+**Run:** `cd shop-ui && npm install && npm run dev` (requires Node 20; dev server on port 5173, fixed for backend CORS and MoMo redirect).
 
-**Features:**
-- 🎨 Modern gradient UI with smooth animations
-- 📱 Fully responsive (mobile, tablet, desktop)
-- ✅ Real-time form validation (3+ char username, 8+ char password)
-- 🔐 Password visibility toggle, remember-me checkbox
-- 🚀 Error/success alert notifications
-- 📋 Token display with copy-to-clipboard functionality
-- 🔄 Token refresh without re-authentication
-- 👤 Displays user roles and permissions from JWT scope
-- 🚪 Safe logout with token invalidation
+**Config:** `VITE_API_BASE` env var (default `http://localhost:8081/identity`).
 
-**How to Use:**
+**Pages:**
+- Storefront: `/` (browse products), `/products/:slug` (detail), `/cart`, `/checkout`
+- Authentication: `/login`, `/signup`
+- Orders: `/payment/result`, `/orders` (list), `/orders/:code` (detail)
+- Admin: `/admin/products`, `/admin/orders`, `/admin/shipping`
 
-1. Start the API server:
-   ```bash
-   mvn spring-boot:run
-   ```
+**Auth:** JWT stored in `localStorage` under `auth_token`; client proactively refreshes when near expiry. For production, use httpOnly cookies (`Set-Cookie: auth_token=...; HttpOnly; Secure; SameSite=Strict`) and Content-Security-Policy headers.
 
-2. Open `login.html` in your browser:
-   - Use Live Server in VSCode, or
-   - Open file directly in browser (file:// protocol)
-
-3. Enter credentials and click "Đăng nhập"
-4. On successful login, you'll be redirected to `dashboard.html`
-5. Dashboard shows your JWT token, can copy/refresh it, or logout
-
-**API Integration:**
-- Communicates with `/identity/auth/token`, `/identity/auth/refresh`, `/identity/auth/logout`, `/identity/users/{userId}`
-- JWT stored in `localStorage` under key `auth_token`
-- Authorization header: `Bearer {token}`
-
-**For Production:**
-- Add CORS headers to backend (currently allowing localhost)
-- Store JWT in httpOnly cookies instead of localStorage for XSS protection
-- Add HTTPS and Content-Security-Policy headers
-- Implement proper error handling for token expiration (redirect to login)
+**Tests:** `npm test` (Vitest; must pass before production builds).
 
