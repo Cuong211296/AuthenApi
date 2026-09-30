@@ -18,3 +18,13 @@ export function stockLevel(stock, lowBelow = 5) {
   if (!(stock > 0)) return 'out';
   return stock < lowBelow ? 'low' : 'ok';
 }
+
+/**
+ * Value to commit for a typed/stepped `draft`, or null when nothing should change: the draft equals the current
+ * value (e.g. tabbing through the field) or clamps back to it. Prevents silent updates on blur.
+ */
+export function clampCommit(draft, value, min = 1, max = 99) {
+  if (String(draft).trim() === String(value)) return null;
+  const clamped = clampQuantity(draft, min, max);
+  return clamped === value ? null : clamped;
+}

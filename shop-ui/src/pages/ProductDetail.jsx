@@ -21,6 +21,12 @@ import { clampQuantity, maxQuantityFor, stockLevel } from '../utils/quantity.js'
 import { colorsFor, findVariant, sizesOf } from '../utils/variants.js';
 import './ProductDetail.css';
 
+/** Mounted only after the product is loaded, so the first render starts at the real price (no count-up from 0). */
+function AnimatedPrice({ price }) {
+  const shown = useAnimatedNumber(price);
+  return <p className="pd__price tabular">{formatVnd(shown)}</p>;
+}
+
 function ProductSkeleton() {
   return (
     <div className="container pd" role="status" aria-label="Đang tải sản phẩm">
@@ -96,7 +102,6 @@ export default function ProductDetail() {
   useEffect(() => { setQty((q) => clampQuantity(q, 1, Math.max(1, maxQty))); }, [maxQty]);
 
   const price = variant ? variant.price : product?.basePrice ?? 0;
-  const shownPrice = useAnimatedNumber(price);
 
   async function addToCart() {
     setAddError('');
@@ -148,7 +153,7 @@ export default function ProductDetail() {
         <div className="pd__panel">
           {product.category && <p className="eyebrow">{product.category.name}</p>}
           <h1 className="pd__title">{product.name}</h1>
-          <p className="pd__price tabular" aria-label={`Giá ${formatVnd(price)}`}>{formatVnd(shownPrice)}</p>
+          <AnimatedPrice price={price} />
           {product.description && <p className="pd__desc">{product.description}</p>}
 
           <div className="pd__field">

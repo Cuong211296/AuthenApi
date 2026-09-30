@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Drawer from '../ui/Drawer.jsx';
 import Button from '../ui/Button.jsx';
@@ -37,17 +37,21 @@ export default function CartDrawer() {
   const { session } = useAuth();
   const { cart, loaded, reload } = useCart();
   const { dismissAll } = useToast();
-  const { error, clearError, pendingId, changeQuantity, removeLine } = useCartActions();
+  const { error, clearError, pendingId, busy, changeQuantity, removeLine } = useCartActions();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Always show fresh stock/prices when the drawer opens.
+  // Always show fresh stock/prices when the drawer opens. Keyed on `open` and `signedIn` only, so a silent token
+  // refresh (new `reload`) does not re-run it and wipe a visible error.
+  const latestRef = useRef({});
+  latestRef.current = { reload, clearError, dismissAll };
+  const signedIn = Boolean(session);
   useEffect(() => {
-    if (open) dismissAll(); // the drawer already shows the cart, so an "added" toast would only cover its header
-    if (open && session) { clearError(); reload(); }
-    // clearError is recreated each render; only the open transition matters here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, session, reload, dismissAll]);
+    if (!open) return;
+    const { reload: doReload, clearError: doClear, dismissAll: doDismiss } = latestRef.current;
+    doDismiss(); // the drawer already shows the cart, so an "added" toast would only cover its header
+    if (signedIn) { doClear(); doReload(); }
+  }, [open, signedIn]);
 
   const items = cart.items;
   const hasUnavailable = items.some((i) => !i.available);
@@ -73,11 +77,11 @@ export default function CartDrawer() {
             disabled={hasUnavailable}
             aria-describedby="cd-note"
             iconRight={<ArrowIcon size={18} />}
-            onClick={() => navigate('/checkout')}
+            onClick={() => { closeCart(); navigate('/checkout'); }}
           >
             Thanh toán
           </Button>
-          <Button as={Link} to="/cart" variant="ghost" block>Xem giỏ hàng</Button>
+          <Button as={Link} to="/cart" variant="ghost" block onClick={closeCart}>Xem giỏ hàng</Button>
         </div>
       </div>
     );
@@ -90,7 +94,7 @@ export default function CartDrawer() {
         className="cd__empty"
         icon={<UserIcon size={26} />}
         title="Đăng nhập để xem giỏ hàng"
-        action={<Button as={Link} to="/login" state={{ from: location }}>Đăng nhập</Button>}
+        action={<Button as={Link} to="/login" state={{ from: location }} onClick={closeCart}>Đăng nhập</Button>}
       >
         Giỏ hàng gắn với tài khoản của bạn, nên bạn cần đăng nhập để thêm và xem sản phẩm.
       </EmptyState>
@@ -103,7 +107,7 @@ export default function CartDrawer() {
         className="cd__empty"
         icon={<BagIcon size={26} />}
         title="Giỏ hàng đang trống"
-        action={<Button as={Link} to="/" variant="dark" iconRight={<ArrowIcon size={18} />}>Tiếp tục mua sắm</Button>}
+        action={<Button as={Link} to="/" variant="dark" iconRight={<ArrowIcon size={18} />} onClick={closeCart}>Tiếp tục mua sắm</Button>}
       >
         Hãy chọn vài món bạn thích, chúng sẽ xuất hiện ở đây.
       </EmptyState>
@@ -112,7 +116,7 @@ export default function CartDrawer() {
     body = (
       <>
         {error && <p className="cl-alert cl-alert--error cd__error" role="alert">{error}</p>}
-        <CartLines items={items} compact pendingId={pendingId} onChange={changeQuantity} onRemove={removeLine} />
+        <CartLines items={items} compact pendingId={pendingId} busy={busy} onChange={changeQuantity} onRemove={removeLine} />
       </>
     );
   }

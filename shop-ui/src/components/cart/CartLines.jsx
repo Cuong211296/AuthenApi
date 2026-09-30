@@ -24,7 +24,8 @@ const Line = forwardRef(function Line({ item, compact, busy, onChange, onRemove 
   const reduce = useReducedMotion();
   // A rejected change leaves the cart untouched; bumping the key remounts the stepper so it shows the real quantity again.
   const [nonce, setNonce] = useState(0);
-  const max = Math.max(1, maxQuantityFor(item.stock));
+  // An unavailable line may hold more than the stock: never let max drop below the quantity ("+" stays disabled).
+  const max = Math.max(1, maxQuantityFor(item.stock), item.quantity);
 
   async function change(q) {
     if (!(await onChange(item.variantId, q))) setNonce((n) => n + 1);
@@ -76,7 +77,7 @@ const Line = forwardRef(function Line({ item, compact, busy, onChange, onRemove 
 });
 
 /** Animated list of cart lines, used by the cart page (roomy rows) and the cart drawer (`compact`). */
-export default function CartLines({ items, compact = false, pendingId, onChange, onRemove }) {
+export default function CartLines({ items, compact = false, pendingId, busy = pendingId != null, onChange, onRemove }) {
   return (
     <ul className={`cl ${compact ? 'cl--compact' : ''}`}>
       <AnimatePresence initial={false} mode="popLayout">
@@ -85,7 +86,7 @@ export default function CartLines({ items, compact = false, pendingId, onChange,
             key={item.variantId}
             item={item}
             compact={compact}
-            busy={pendingId === item.variantId}
+            busy={busy}
             onChange={onChange}
             onRemove={onRemove}
           />

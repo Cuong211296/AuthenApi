@@ -33,7 +33,7 @@ function CartSkeleton() {
 
 export default function Cart() {
   const { cart, loaded, reload } = useCart();
-  const { error, pendingId, changeQuantity, removeLine } = useCartActions();
+  const { error, pendingId, busy, changeQuantity, removeLine } = useCartActions();
   const navigate = useNavigate();
 
   useEffect(() => { reload(); }, [reload]);
@@ -64,7 +64,7 @@ export default function Cart() {
         )}
         <div className="cart__grid">
           <section className="cart__panel" aria-label="Sản phẩm trong giỏ">
-            <CartLines items={cart.items} pendingId={pendingId} onChange={changeQuantity} onRemove={removeLine} />
+            <CartLines items={cart.items} pendingId={pendingId} busy={busy} onChange={changeQuantity} onRemove={removeLine} />
           </section>
 
           <aside className="cart__summary" aria-labelledby="cart-summary-title">

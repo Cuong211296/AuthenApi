@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MinusIcon, PlusIcon } from './icons.jsx';
-import { clampQuantity } from '../../utils/quantity.js';
+import { clampCommit } from '../../utils/quantity.js';
 import './Stepper.css';
 
 /**
@@ -12,9 +12,13 @@ export default function Stepper({ value, onChange, min = 1, max = 99, disabled =
   useEffect(() => setDraft(String(value)), [value]);
 
   const commit = (next) => {
-    const clamped = clampQuantity(next, min, max);
+    const clamped = clampCommit(next, value, min, max);
+    if (clamped === null) {
+      setDraft(String(value));
+      return;
+    }
     setDraft(String(clamped));
-    if (clamped !== value) onChange(clamped);
+    onChange(clamped);
   };
 
   return (

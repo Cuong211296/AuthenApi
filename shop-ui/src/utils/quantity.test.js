@@ -45,3 +45,21 @@ describe('stockLevel', () => {
     expect(stockLevel(5)).toBe('ok');
   });
 });
+
+import { clampCommit } from './quantity.js';
+
+describe('clampCommit', () => {
+  it('returns null when the draft equals the current value', () => {
+    expect(clampCommit('5', 5, 1, 3)).toBeNull();
+    expect(clampCommit(' 5 ', 5, 1, 3)).toBeNull();
+  });
+  it('returns null when the clamped draft equals the value', () => {
+    expect(clampCommit('999', 99, 1, 99)).toBeNull();
+    expect(clampCommit('', 1, 1, 9)).toBeNull();
+  });
+  it('returns the clamped new value otherwise', () => {
+    expect(clampCommit('7', 2, 1, 5)).toBe(5);
+    expect(clampCommit('0', 3, 1, 5)).toBe(1);
+    expect(clampCommit(4, 3, 1, 5)).toBe(4);
+  });
+});
