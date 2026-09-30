@@ -1,5 +1,5 @@
 /*
- * Compatibility layer for pages not yet redesigned (product detail, cart, checkout, orders, auth, admin).
+ * Compatibility layer for pages not yet redesigned (admin).
  * Maps the old class names onto the new tokens. Delete once every page uses the shared UI kit.
  */
 .legacy-page { padding-top: 32px; padding-bottom: 64px; }
@@ -10,7 +10,6 @@
 
 .muted { color: var(--muted); }
 .right { text-align: right; }
-.price { font-weight: 600; color: var(--accent-strong); font-variant-numeric: tabular-nums; }
 
 .card {
   background: var(--surface);
@@ -20,7 +19,6 @@
   box-shadow: var(--sh-1);
   margin: 16px 0;
 }
-.narrow { max-width: 440px; margin: 48px auto; }
 
 .form { display: flex; flex-direction: column; gap: 14px; }
 .form label { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); font-weight: 500; }
@@ -43,22 +41,10 @@
 .btn-primary:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
 .btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
 .btn-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
-.btn-link { border: none; background: none; color: var(--accent-strong); padding: 0; min-height: 0; text-decoration: underline; text-underline-offset: 3px; }
 
 .alert { padding: 12px 16px; border-radius: var(--r-sm); margin: 0; font-size: var(--fs-small); border: 1px solid transparent; }
 .alert-error { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 20%, transparent); }
 .alert-ok { background: var(--success-soft); color: var(--success); border-color: color-mix(in srgb, var(--success) 20%, transparent); }
-.alert-info { background: var(--info-soft); color: var(--info); border-color: color-mix(in srgb, var(--info) 20%, transparent); }
-
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-
-.product-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; display: flex; flex-direction: column; }
-.product-card img, .img-placeholder {
-  width: 100%; aspect-ratio: 3 / 4; object-fit: cover;
-  background: linear-gradient(135deg, var(--surface-2), var(--accent-soft));
-  display: flex; align-items: center; justify-content: center; color: var(--muted);
-}
-.product-card .body { padding: 14px; }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
 .chip {
@@ -98,8 +84,7 @@
 .legacy-page .card.row > div > .chips { margin-top: 8px; }
 .legacy-page .card.row > div > label.form { margin-top: 20px; }
 .legacy-page .card.row > div > h1 { margin-bottom: 4px; }
-.legacy-page .card.row > div > .price { font-size: 1.5rem !important; }
-
+.legacy-page .card.row > div > 
 /* Plain text links in old pages */
 .legacy-page a:not(.btn):not(.chip):not([class*='ui-']) { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .legacy-page a:not(.btn):not(.chip):not([class*='ui-']):hover { color: var(--ink); }

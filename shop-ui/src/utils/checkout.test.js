@@ -1,4 +1,4 @@
-import { normalizeCheckoutForm, isValidPhone } from './checkout.js';
+import { normalizeCheckoutForm, isValidPhone, isValidEmail, checkoutErrors } from './checkout.js';
 
 const base = {
   receiverName: ' Test A ',
@@ -45,5 +45,30 @@ describe('isValidPhone', () => {
     expect(isValidPhone('9704 0000 0000 0018')).toBe(false);
     expect(isValidPhone('090123')).toBe(false);
     expect(isValidPhone('09012345ab')).toBe(false);
+  });
+});
+
+describe('checkoutErrors', () => {
+  const ok = { ...base, receiverName: 'A', phone: '0901234567', email: 'a@b.com', address: 'x', province: 'Hà Nội' };
+
+  it('returns no errors for a valid form (values are trimmed first)', () => {
+    expect(checkoutErrors(base)).toEqual({});
+    expect(checkoutErrors(ok)).toEqual({});
+  });
+
+  it('flags every empty required field', () => {
+    const e = checkoutErrors({ ...ok, receiverName: ' ', phone: '', email: '', address: '  ', province: '' });
+    expect(Object.keys(e).sort()).toEqual(['address', 'email', 'phone', 'province', 'receiverName']);
+  });
+
+  it('distinguishes a missing phone from an invalid one', () => {
+    expect(checkoutErrors({ ...ok, phone: '' }).phone).toMatch(/nhập/);
+    expect(checkoutErrors({ ...ok, phone: '12345' }).phone).toMatch(/không hợp lệ/);
+  });
+
+  it('validates the email shape', () => {
+    expect(checkoutErrors({ ...ok, email: 'abc' }).email).toMatch(/không hợp lệ/);
+    expect(checkoutErrors({ ...ok, email: 'a@b' }).email).toMatch(/không hợp lệ/);
+    expect(isValidEmail('ten@example.com')).toBe(true);
   });
 });

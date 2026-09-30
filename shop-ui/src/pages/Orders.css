@@ -1,0 +1,37 @@
+.or { padding-top: clamp(24px, 4vw, 48px); padding-bottom: clamp(48px, 8vw, 96px); max-width: calc(880px + var(--gutter) * 2); }
+.or__head { margin-bottom: 28px; scroll-margin-top: calc(var(--header-h) + 16px); }
+.or__head h1 { font-size: var(--fs-h1); }
+.or__list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; transition: opacity var(--t-std) var(--ease); }
+.or__list.is-stale { opacity: 0.5; }
+.or__error { margin-bottom: 16px; padding: 10px 16px; border-radius: var(--r-sm); background: var(--danger-soft); color: var(--danger); font-size: var(--fs-small); font-weight: 500; }
+
+.oc {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface);
+  box-shadow: var(--sh-1);
+  transition: transform var(--t-std) var(--ease), box-shadow var(--t-std) var(--ease), border-color var(--t-std) var(--ease);
+}
+.oc--skel { pointer-events: none; }
+.oc__main { display: grid; gap: 6px; min-width: 0; }
+.oc__code { font-weight: 700; font-size: 1.0625rem; letter-spacing: 0.01em; }
+.oc__date { font-size: var(--fs-small); color: var(--muted); }
+.oc__items { font-size: var(--fs-small); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc__badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.oc__side { display: flex; align-items: center; gap: 14px; flex: none; }
+.oc__total { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; }
+.oc__go {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--line); color: var(--muted);
+  transition: background-color var(--t-std) var(--ease), color var(--t-std) var(--ease), transform var(--t-std) var(--ease), border-color var(--t-std) var(--ease);
+}
+@media (hover: hover) {
+  .oc:hover { transform: translateY(-3px); box-shadow: var(--sh-2); border-color: #dcd2c4; }
+  .oc:hover .oc__go { background: var(--ink); border-color: var(--ink); color: #fff; transform: translateX(3px); }
+}
+.oc:focus-visible { border-radius: var(--r-md); }
+
+@media (max-width: 560px) {
+  .oc { flex-direction: column; align-items: stretch; gap: 14px; padding: 18px; }
+  .oc__side { justify-content: space-between; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .oc--skel { flex-direction: column; }
+}

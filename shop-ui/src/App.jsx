@@ -50,12 +50,12 @@ function AppRoutes() {
             <Route path="/" element={<Home />} />
             <Route path="/products/:slug" element={<ProductDetail />} />
             <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
-            <Route path="/checkout" element={<ProtectedRoute>{legacy(<Checkout />)}</ProtectedRoute>} />
-            <Route path="/payment/result" element={<ProtectedRoute>{legacy(<PaymentResult />)}</ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute>{legacy(<Orders />)}</ProtectedRoute>} />
-            <Route path="/orders/:code" element={<ProtectedRoute>{legacy(<OrderDetail />)}</ProtectedRoute>} />
-            <Route path="/login" element={legacy(<Login />)} />
-            <Route path="/signup" element={legacy(<Signup />)} />
+            <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+            <Route path="/payment/result" element={<ProtectedRoute><PaymentResult /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+            <Route path="/orders/:code" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
             <Route path="/admin/*" element={<ProtectedRoute admin>{legacy(<AdminLayout />)}</ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,0 +1,7 @@
+.ot { padding: 4px 0; }
+.ot-cancelled {
+  display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-radius: var(--r-md);
+  background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+}
+.ot-cancelled__title { font-weight: 700; color: var(--danger); }
+.ot-cancelled__text { font-size: var(--fs-small); color: var(--ink); opacity: 0.8; }

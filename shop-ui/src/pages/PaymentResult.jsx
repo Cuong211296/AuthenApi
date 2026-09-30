@@ -1,6 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
+import Badge from '../components/ui/Badge.jsx';
+import Button from '../components/ui/Button.jsx';
+import StatusMark from '../components/ui/StatusMark.jsx';
+import { ArrowIcon, RefreshIcon } from '../components/ui/icons.jsx';
+import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from '../utils/labels.js';
+import './PaymentResult.css';
+
+/** Which state to show: loading | paid | pending | failed | cancelled | error. */
+function viewOf({ result, error }) {
+  if (!result) return error ? 'error' : 'loading';
+  if (result.paymentStatus === 'PAID') return 'paid';
+  if (result.orderStatus === 'CANCELLED') return 'cancelled';
+  if (result.paymentStatus === 'FAILED') return 'failed';
+  return 'pending';
+}
+
+const COPY = {
+  loading: { mark: 'pending', title: 'Đang xác nhận với MoMo...', text: 'Vui lòng chờ trong giây lát, đừng đóng trang này.' },
+  paid: { mark: 'success', title: 'Thanh toán thành công', text: 'Cảm ơn bạn! Email xác nhận sẽ được gửi tới bạn.' },
+  pending: {
+    mark: 'pending',
+    title: 'Đang chờ xác nhận thanh toán',
+    text: 'Chưa nhận được xác nhận thanh toán. Nếu bạn đã thanh toán, hãy bấm "Kiểm tra lại" sau vài giây.',
+  },
+  failed: { mark: 'danger', title: 'Thanh toán không thành công', text: 'Giao dịch chưa hoàn tất. Bạn có thể thử thanh toán lại từ trang đơn hàng.' },
+  cancelled: { mark: 'danger', title: 'Đơn hàng đã bị huỷ', text: 'Đơn hàng đã bị huỷ (hết hạn thanh toán).' },
+  error: { mark: 'warn', title: 'Không thể xác nhận thanh toán', text: '' },
+};
 
 export default function PaymentResult() {
   const [params] = useSearchParams();
@@ -29,20 +57,47 @@ export default function PaymentResult() {
     return () => { ignore = true; };
   }, [check]);
 
+  const view = viewOf({ result, error });
+  const copy = COPY[view];
+  const text = view === 'error' ? error : copy.text;
+
   return (
-    <div className="card narrow">
-      <h1>Kết quả thanh toán</h1>
-      {busy && !result && <p className="muted">Đang xác nhận với MoMo...</p>}
-      {error && <p className="alert alert-error">{error}</p>}
-      {result?.paymentStatus === 'PAID' && <p className="alert alert-ok">Thanh toán thành công. Cảm ơn bạn! Email xác nhận sẽ được gửi tới bạn.</p>}
-      {result && result.paymentStatus !== 'PAID' && result.orderStatus === 'PENDING_PAYMENT' && (
-        <p className="alert alert-info">Chưa nhận được xác nhận thanh toán. Nếu bạn đã thanh toán, hãy bấm "Kiểm tra lại" sau vài giây.</p>
-      )}
-      {result && result.orderStatus === 'CANCELLED' && <p className="alert alert-error">Đơn hàng đã bị huỷ (hết hạn thanh toán).</p>}
-      <p>
-        <button className="btn" onClick={() => check()} disabled={busy}>Kiểm tra lại</button>{' '}
-        {orderCode && <Link to={`/orders/${orderCode}`}>Xem đơn hàng</Link>}
-      </p>
+    <div className="container pr">
+      <section className={`pr__card pr__card--${view}`} aria-labelledby="pr-title">
+        <div role="status" className="pr__status">
+          <StatusMark key={copy.mark} kind={copy.mark} />
+          <p className="eyebrow">Kết quả thanh toán</p>
+          <h1 id="pr-title" className="pr__title">{copy.title}</h1>
+          {text && <p className="pr__text">{text}</p>}
+        </div>
+
+        {orderCode && (
+          <p className="pr__code">
+            Mã đơn hàng <strong className="tabular">{orderCode}</strong>
+          </p>
+        )}
+        {result && (
+          <p className="pr__badges">
+            <Badge tone={ORDER_STATUS_TONE[result.orderStatus] ?? 'neutral'} dot>{ORDER_STATUS_LABEL[result.orderStatus] ?? result.orderStatus}</Badge>
+            <Badge tone={PAYMENT_STATUS_TONE[result.paymentStatus] ?? 'neutral'} dot>{PAYMENT_STATUS_LABEL[result.paymentStatus] ?? result.paymentStatus}</Badge>
+          </p>
+        )}
+        {error && result && <p className="pr__error" role="alert">{error}</p>}
+
+        <div className="pr__actions">
+          {orderCode && (
+            <Button as={Link} to={`/orders/${orderCode}`} variant={view === 'paid' ? 'primary' : 'dark'} iconRight={<ArrowIcon size={18} />}>
+              Xem đơn hàng
+            </Button>
+          )}
+          {orderCode && (
+            <Button variant="ghost" loading={busy} onClick={() => check()} iconLeft={<RefreshIcon size={18} />}>
+              Kiểm tra lại
+            </Button>
+          )}
+          {!orderCode && <Button as={Link} to="/orders" variant="dark">Xem đơn hàng của tôi</Button>}
+        </div>
+      </section>
     </div>
   );
 }

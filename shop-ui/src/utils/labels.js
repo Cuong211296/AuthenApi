@@ -23,3 +23,25 @@ export const NEXT_STATUSES = {
   COMPLETED: [],
   CANCELLED: [],
 };
+
+/** Badge tones (components/ui/Badge) per status; the label text is always shown too, never color alone. */
+export const ORDER_STATUS_TONE = {
+  PENDING_PAYMENT: 'warn',
+  PENDING_CONFIRM: 'info',
+  CONFIRMED: 'info',
+  SHIPPING: 'accent',
+  COMPLETED: 'success',
+  CANCELLED: 'danger',
+};
+
+export const PAYMENT_STATUS_TONE = {
+  UNPAID: 'neutral',
+  PAID: 'success',
+  FAILED: 'danger',
+  EXPIRED: 'danger',
+};
+
+export const PAYMENT_METHOD_LABEL = {
+  MOMO: 'MoMo',
+  COD: 'Thanh toán khi nhận hàng (COD)',
+};

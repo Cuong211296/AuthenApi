@@ -1,0 +1,31 @@
+.ui-field { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.ui-field__label { font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+.ui-field__opt { font-weight: 400; color: var(--muted); }
+.ui-field__control { position: relative; }
+.ui-field__control > :where(input, select, textarea) { padding: 12px 16px; min-height: 50px; border-radius: 12px; }
+.ui-field__control--textarea > textarea { resize: vertical; min-height: 88px; line-height: 1.5; }
+.ui-field__control--select > select { appearance: none; -webkit-appearance: none; padding-right: 44px; cursor: pointer; }
+.ui-field__chevron { position: absolute; right: 16px; top: 50%; margin-top: -9px; color: var(--muted); pointer-events: none; }
+.ui-field__control.has-toggle > input { padding-right: 52px; }
+.ui-field__toggle {
+  position: absolute; right: 5px; top: 50%; margin-top: -20px;
+  display: grid; place-items: center; width: 40px; height: 40px;
+  border: 0; border-radius: 50%; background: transparent; color: var(--muted);
+  transition: color var(--t-micro) var(--ease), background-color var(--t-micro) var(--ease);
+}
+.ui-field__toggle:hover { color: var(--ink); background: var(--ink-soft); }
+.ui-field__toggle[aria-pressed='true'] { color: var(--accent-strong); }
+
+.ui-field.has-error .ui-field__control > :where(input, select, textarea) {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger-soft) 35%, var(--surface));
+}
+.ui-field.has-error .ui-field__control > :where(input, select, textarea):focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger), 0 0 0 5px var(--danger-soft);
+}
+.ui-field__msg-wrap:empty { display: none; }
+.ui-field__error, .ui-field__hint { font-size: var(--fs-small); line-height: 1.45; }
+.ui-field__error { color: var(--danger); font-weight: 500; animation: field-msg 0.25s var(--ease); }
+.ui-field__hint { color: var(--muted); }
+@keyframes field-msg { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

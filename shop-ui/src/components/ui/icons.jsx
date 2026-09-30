@@ -69,3 +69,24 @@ export const MenuIcon = (p) => (
 export const BagIcon = (p) => (
   <Icon {...p}><path d="M4 8h16l-1 12H5L4 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></Icon>
 );
+export const EyeIcon = (p) => (
+  <Icon {...p}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="3" /></Icon>
+);
+export const EyeOffIcon = (p) => (
+  <Icon {...p}><path d="M3 3l18 18" /><path d="M10.6 6a10 10 0 0 1 1.4-.1c6 0 9.5 6.1 9.5 6.1a17 17 0 0 1-3.1 3.8M6.6 7.7A16.6 16.6 0 0 0 2.5 12S6 18.1 12 18.1c1.5 0 2.8-.4 4-.9" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Icon>
+);
+export const CashIcon = (p) => (
+  <Icon {...p}><rect x="3" y="6" width="18" height="12" rx="2.5" /><circle cx="12" cy="12" r="2.6" /><path d="M6.5 9.5v.01M17.5 14.5v.01" strokeWidth="2.4" /></Icon>
+);
+export const AlertIcon = (p) => (
+  <Icon {...p}><path d="M12 3.5 2.8 19.5h18.4L12 3.5Z" /><path d="M12 10v4.2M12 17.2v.01" /></Icon>
+);
+export const ClockIcon = (p) => (
+  <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>
+);
+export const PinIcon = (p) => (
+  <Icon {...p}><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></Icon>
+);
+export const LockIcon = (p) => (
+  <Icon {...p}><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></Icon>
+);

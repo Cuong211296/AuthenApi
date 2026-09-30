@@ -1,0 +1,7 @@
+.ui-mark { display: inline-grid; place-items: center; border-radius: 50%; flex: none; }
+.ui-mark svg { stroke: currentColor; overflow: visible; }
+.ui-mark--success { color: var(--success); background: var(--success-soft); }
+.ui-mark--danger { color: var(--danger); background: var(--danger-soft); }
+.ui-mark--warn { color: var(--warn); background: var(--warn-soft); }
+.ui-mark--pending { color: var(--accent); background: var(--accent-soft); }
+.ui-mark__spinner { width: 42%; height: 42%; border-width: 4px; }
