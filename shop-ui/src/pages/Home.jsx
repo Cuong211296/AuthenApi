@@ -90,6 +90,26 @@ export default function Home() {
     update({ page: String(page) });
   }, [focusSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Header category links only change the URL: bring the filtered list into view, otherwise the hero stays on
+  // screen and nothing seems to happen. A plain visit to "/" stays at the top.
+  // (No cleanup on purpose: StrictMode's second run must not cancel the timer of the first.)
+  const lastCategory = useRef(category);
+  const firstRun = useRef(true);
+  useEffect(() => {
+    const changed = lastCategory.current !== category;
+    const deepLink = firstRun.current && category !== '';
+    lastCategory.current = category;
+    firstRun.current = false;
+    if (!changed && !deepLink) return;
+    // Wait for the shell's scroll-to-top on navigation and for the first layout.
+    setTimeout(() => {
+      document.getElementById('collection-title')?.scrollIntoView({
+        block: 'start',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
+    }, 80);
+  }, [category]);
+
   function clearSearch() {
     setSearch('');
     pushedQ.current = '';
