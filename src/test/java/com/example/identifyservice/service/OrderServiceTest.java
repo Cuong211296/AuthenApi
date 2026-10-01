@@ -59,7 +59,7 @@ class OrderServiceTest {
     }
 
     private CheckoutRequest request(PaymentMethod method, String province) {
-        return new CheckoutRequest("Alice", "0901234567", "alice@example.com", "12 Nguyen Hue", province, null, method);
+        return new CheckoutRequest("Alice", "0901234567", "alice@example.com", "12 Nguyen Hue", province, "Phường 1", null, method);
     }
 
     private void actAs(String username, String role) {
@@ -248,5 +248,14 @@ class OrderServiceTest {
         em.flush();
         em.clear();
         assertThat(orderRepository.findByCode(order.code()).orElseThrow().getItems().get(0).getUnitCost()).isNull();
+    }
+
+    @Test
+    void checkoutStoresTrimmedWardAndReturnsIt() {
+        cart.addItem(m.getId(), 1);
+        OrderResponse order = orders.checkout(new CheckoutRequest("Alice", "0901234567", "alice@example.com",
+                "12 Nguyen Hue", "Hà Nội", "  Phường Bến Nghé ", null, PaymentMethod.COD));
+        assertThat(order.ward()).isEqualTo("Phường Bến Nghé");
+        assertThat(orders.getMyOrder(order.code()).ward()).isEqualTo("Phường Bến Nghé");
     }
 }

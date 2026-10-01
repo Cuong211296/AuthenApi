@@ -53,4 +53,30 @@ class ValidationWiringTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1011));
     }
+
+    @Test
+    void productWeightOutOfRangeIsRejected() throws Exception {
+        for (int bad : new int[]{0, 50001}) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/admin/products")
+                            .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"X\",\"slug\":\"x\",\"basePrice\":1000,\"weightGrams\":" + bad + "}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(1011));
+        }
+    }
+
+    @Test
+    void checkoutWithoutWardIsRejected() throws Exception {
+        for (String ward : new String[]{"\"\"", "\"   \"", null}) {
+            String wardJson = ward == null ? "" : ",\"ward\":" + ward;
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/orders")
+                            .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"receiverName\":\"A\",\"phone\":\"0901234567\",\"email\":\"a@b.co\","
+                                    + "\"address\":\"1 St\",\"province\":\"Hà Nội\",\"paymentMethod\":\"COD\"" + wardJson + "}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(1011));
+        }
+    }
 }

@@ -25,7 +25,7 @@ class AdminCatalogServiceTest {
     @Autowired ProductService publicService;
 
     private ProductRequest product(String slug, String categoryId) {
-        return new ProductRequest("Name " + slug, slug, "desc", categoryId, 250_000, null, "https://img/x.jpg", true);
+        return new ProductRequest("Name " + slug, slug, "desc", categoryId, 250_000, null, null, "https://img/x.jpg", true);
     }
 
     private static ErrorCode codeOf(Throwable t) {
@@ -132,31 +132,49 @@ class AdminCatalogServiceTest {
         admin.deactivateProduct(created.id());
 
         var p = admin.updateProduct(created.id(),
-                new ProductRequest("Renamed", "keep-tee", "desc", null, 250_000, null, null, null));
+                new ProductRequest("Renamed", "keep-tee", "desc", null, 250_000, null, null, null, null));
         assertThat(p.active()).isFalse();
         var uv = admin.updateVariant(v.id(), new VariantRequest("M", "red", "KEEP-1", 2, null, null));
         assertThat(uv.active()).isFalse();
 
         var reactivated = admin.updateProduct(created.id(),
-                new ProductRequest("Renamed", "keep-tee", "desc", null, 250_000, null, null, true));
+                new ProductRequest("Renamed", "keep-tee", "desc", null, 250_000, null, null, null, true));
         assertThat(reactivated.active()).isTrue();
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void costPriceIsStoredUpdatedAndNullable() {
-        var created = admin.createProduct(new ProductRequest("Cost tee", "cost-tee", "d", null, 250_000, 90_000L, null, true));
+        var created = admin.createProduct(new ProductRequest("Cost tee", "cost-tee", "d", null, 250_000, 90_000L, null, null, true));
         assertThat(created.costPrice()).isEqualTo(90_000L);
 
         var updated = admin.updateProduct(created.id(),
-                new ProductRequest("Cost tee", "cost-tee", "d", null, 250_000, 95_000L, null, true));
+                new ProductRequest("Cost tee", "cost-tee", "d", null, 250_000, 95_000L, null, null, true));
         assertThat(updated.costPrice()).isEqualTo(95_000L);
 
         var cleared = admin.updateProduct(created.id(),
-                new ProductRequest("Cost tee", "cost-tee", "d", null, 250_000, null, null, true));
+                new ProductRequest("Cost tee", "cost-tee", "d", null, 250_000, null, null, null, true));
         assertThat(cleared.costPrice()).isNull();
 
-        var none = admin.createProduct(new ProductRequest("No cost", "no-cost", "d", null, 250_000, null, null, true));
+        var none = admin.createProduct(new ProductRequest("No cost", "no-cost", "d", null, 250_000, null, null, null, true));
         assertThat(none.costPrice()).isNull();
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void weightIsStoredUpdatedAndNullable() {
+        var created = admin.createProduct(new ProductRequest("Weight tee", "weight-tee", "d", null, 250_000, null, 450, null, true));
+        assertThat(created.weightGrams()).isEqualTo(450);
+
+        var updated = admin.updateProduct(created.id(),
+                new ProductRequest("Weight tee", "weight-tee", "d", null, 250_000, null, 600, null, true));
+        assertThat(updated.weightGrams()).isEqualTo(600);
+
+        var cleared = admin.updateProduct(created.id(),
+                new ProductRequest("Weight tee", "weight-tee", "d", null, 250_000, null, null, null, true));
+        assertThat(cleared.weightGrams()).isNull();
+
+        var none = admin.createProduct(new ProductRequest("No weight", "no-weight", "d", null, 250_000, null, null, null, true));
+        assertThat(none.weightGrams()).isNull();
     }
 }

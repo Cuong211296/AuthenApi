@@ -77,4 +77,28 @@ class CostPriceExposureTest {
     private static java.util.List<String> componentNames(Class<?> record) {
         return Arrays.stream(record.getRecordComponents()).map(c -> c.getName()).toList();
     }
+
+    @Test
+    void weightIsAdminOnlyAndOmittedWhenNull() throws Exception {
+        Product p = data.product("weighty-tee", 200_000, true);
+        data.variant(p, "M", "white", 5, null);
+        p.setWeightGrams(777);
+        products.save(p);
+        Product plain = data.product("plain-weight-tee", 200_000, true);
+        data.variant(plain, "M", "white", 5, null);
+
+        String detail = mvc.perform(get("/products/weighty-tee")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(detail).doesNotContain("weightGrams").doesNotContain("777");
+        String list = mvc.perform(get("/products")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(list).doesNotContain("weightGrams").doesNotContain("777");
+
+        var admin = jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        mvc.perform(get("/admin/products/" + p.getId()).with(admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.weightGrams").value(777));
+        String noWeight = mvc.perform(get("/admin/products/" + plain.getId()).with(admin))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(noWeight).doesNotContain("weightGrams");
+    }
 }

@@ -18,6 +18,8 @@ import java.util.List;
 @Entity
 @Table(name = "product")
 public class Product {
+    public static final int DEFAULT_WEIGHT_GRAMS = 300;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
@@ -42,6 +44,10 @@ public class Product {
     @Column
     Long costPrice;
 
+    /** Shipping weight of one unit in grams; null means {@link #DEFAULT_WEIGHT_GRAMS}. */
+    @Column
+    Integer weightGrams;
+
     @Column(length = 500)
     String imageUrl;
 
@@ -56,4 +62,8 @@ public class Product {
     @CreationTimestamp
     @Column(updatable = false)
     Instant createdAt;
+
+    public int effectiveWeight() {
+        return weightGrams != null ? weightGrams : DEFAULT_WEIGHT_GRAMS;
+    }
 }

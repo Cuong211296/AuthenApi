@@ -1,5 +1,6 @@
 package com.example.identifyservice.dto.request;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -12,6 +13,7 @@ public record ProductRequest(
         String categoryId,
         @Min(value = 0, message = "INVALID_INPUT") long basePrice,
         @Min(value = 0, message = "INVALID_INPUT") Long costPrice,
+        @Min(value = 1, message = "INVALID_INPUT") @Max(value = 50000, message = "INVALID_INPUT") Integer weightGrams,
         @Size(max = 500, message = "INVALID_INPUT") String imageUrl,
         Boolean active) {
 }

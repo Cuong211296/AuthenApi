@@ -13,6 +13,7 @@ public record CheckoutRequest(
         @NotBlank(message = "INVALID_INPUT") @Email(message = "INVALID_INPUT") @Size(max = 150, message = "INVALID_INPUT") String email,
         @NotBlank(message = "INVALID_INPUT") @Size(max = 300, message = "INVALID_INPUT") String address,
         @NotBlank(message = "INVALID_INPUT") String province,
+        @NotBlank(message = "INVALID_INPUT") @Size(max = 100, message = "INVALID_INPUT") String ward,
         @Size(max = 500, message = "INVALID_INPUT") String note,
         @NotNull(message = "INVALID_INPUT") PaymentMethod paymentMethod) {
 }

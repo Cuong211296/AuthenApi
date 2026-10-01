@@ -3,6 +3,7 @@ package com.example.identifyservice.entity;
 import com.example.identifyservice.enums.OrderStatus;
 import com.example.identifyservice.enums.PaymentMethod;
 import com.example.identifyservice.enums.PaymentStatus;
+import com.example.identifyservice.enums.ShippingSource;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -62,6 +63,18 @@ public class Order {
 
     @Column(nullable = false, length = 100)
     String province;
+
+    /** Null on orders created before the ward field existed. */
+    @Column(length = 100)
+    String ward;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    ShippingSource shippingSource;
+
+    /** Parcel weight used for the shipping quote; null on old orders. */
+    @Column
+    Integer weightGrams;
 
     @Column(length = 500)
     String note;

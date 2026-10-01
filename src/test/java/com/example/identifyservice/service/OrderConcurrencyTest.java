@@ -41,7 +41,7 @@ class OrderConcurrencyTest {
     @Autowired OrderRepository orders;
 
     private CheckoutRequest request() {
-        return new CheckoutRequest("Racer", "0901234567", "racer@example.com", "1 Race St", "Hà Nội", null,
+        return new CheckoutRequest("Racer", "0901234567", "racer@example.com", "1 Race St", "Hà Nội", "Phường 1", null,
                 PaymentMethod.COD);
     }
 

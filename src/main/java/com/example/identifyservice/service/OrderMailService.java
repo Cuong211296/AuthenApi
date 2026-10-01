@@ -61,7 +61,8 @@ public class OrderMailService {
                 + "<p>Tạm tính: " + vnd(o.getSubtotal()) + "<br>Phí vận chuyển: " + vnd(o.getShippingFee())
                 + "<br><b>Tổng cộng: " + vnd(o.getTotal()) + "</b></p>"
                 + "<p>" + payment + "</p>"
-                + "<p>Giao đến: " + h(o.getAddress()) + ", " + h(o.getProvince()) + " - SĐT " + h(o.getPhone()) + "</p>";
+                + "<p>Giao đến: " + h(o.getAddress()) + ", " + (o.getWard() == null || o.getWard().isBlank() ? "" : h(o.getWard()) + ", ")
+                + h(o.getProvince()) + " - SĐT " + h(o.getPhone()) + "</p>";
     }
 
     private static String h(String s) {

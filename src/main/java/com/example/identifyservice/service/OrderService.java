@@ -68,6 +68,7 @@ public class OrderService {
                 .email(request.email().trim())
                 .address(request.address().trim())
                 .province(rate.getProvince())
+                .ward(request.ward().trim())
                 .note(request.note() == null || request.note().isBlank() ? null : request.note().trim())
                 .shippingFee(rate.getFee())
                 .expiresAt(momo ? now.plus(shopProperties.orderExpiryMinutes(), ChronoUnit.MINUTES) : null)

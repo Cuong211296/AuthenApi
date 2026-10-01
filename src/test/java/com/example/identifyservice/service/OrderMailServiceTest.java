@@ -68,4 +68,20 @@ class OrderMailServiceTest {
         doThrow(new RuntimeException("boom")).when(broken).sendOrderConfirmation("x");
         assertThatCode(() -> new OrderMailListener(broken).on(new OrderConfirmedEvent("x"))).doesNotThrowAnyException();
     }
+
+    @Test
+    void deliveryLineShowsEscapedWardAndOldOrdersWithoutWardRenderCleanly() throws Exception {
+        order.setWard("Phuong <b>Ben</b> Nghe");
+        orders.save(order);
+        mailService.sendOrderConfirmation(order.getId());
+        String body = sender.sent.get(0).getContent().toString();
+        assertThat(body).contains("1 Test St, Phuong &lt;b&gt;Ben&lt;/b&gt; Nghe, H").doesNotContain("<b>Ben");
+
+        sender.reset();
+        order.setWard(null);
+        orders.save(order);
+        mailService.sendOrderConfirmation(order.getId());
+        String old = sender.sent.get(0).getContent().toString();
+        assertThat(old).contains("1 Test St, H").doesNotContain("null").doesNotContain("Phuong");
+    }
 }
