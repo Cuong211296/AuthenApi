@@ -15,6 +15,19 @@ export function addressModeFromConfig(config, provincesFailed = false) {
   return config?.addressMode === MODE_IDS && !provincesFailed ? MODE_IDS : MODE_TEXT;
 }
 
+/** 'idle' | 'loading' | 'error' | 'ready' | 'empty' (a list that loaded but has no entries). */
+export function listStatus(list) {
+  if (!list) return 'idle';
+  if (list.status === 'ready' && (list.items?.length ?? 0) === 0) return 'empty';
+  return list.status;
+}
+
+/** A province list that failed or came back empty cannot drive the selects: use the text address instead. */
+export const shouldFallbackToText = (provincesStatus) => provincesStatus === 'error' || provincesStatus === 'empty';
+
+/** Fields to focus, in order, when a required select is invalid but disabled: itself, then its ancestors. */
+export const FOCUS_CHAIN = { province: ['province'], district: ['district', 'province'], ward: ['ward', 'district', 'province'] };
+
 /** Selecting a province clears district and ward, selecting a district clears the ward; `option` may be null to clear. */
 export function selectionReducer(state, action) {
   const option = action.option ?? null;

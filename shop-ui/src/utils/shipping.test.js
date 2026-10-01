@@ -54,6 +54,10 @@ describe('shippingDisplay in GHN_IDS mode', () => {
     expect(failed).toMatchObject({ unknownFee: true, fee: 0, label: 'Phí tạm tính' });
     expect(failed.note).toMatch(/sẽ chốt khi đặt hàng/);
   });
+  it('keeps the quote visible when deliverable is false (the checkout blocks on the flag)', () => {
+    const blocked = { ...ghn, fee: 0, deliverable: false, message: 'GHN không giao tới đây' };
+    expect(shippingDisplay({ state: 'ready', quote: blocked, mode })).toMatchObject({ fee: 0, label: 'Phí GHN', note: 'GHN không giao tới đây', busy: false });
+  });
   it('shows a TABLE fallback quote with the server message', () => {
     expect(shippingDisplay({ state: 'ready', quote: { ...table, message: 'Không kết nối được GHN, dùng phí tạm tính' }, mode }))
       .toMatchObject({ label: 'Phí tạm tính', note: 'Không kết nối được GHN, dùng phí tạm tính' });

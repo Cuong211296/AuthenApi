@@ -1,5 +1,6 @@
 import {
-  EMPTY_SELECTION, addressModeFromConfig, buildAddressPayload, findOption, isAddressComplete, selectionReducer, sortByName, toOptions,
+  EMPTY_SELECTION, FOCUS_CHAIN, addressModeFromConfig, buildAddressPayload, findOption, isAddressComplete, listStatus, selectionReducer,
+  shouldFallbackToText, sortByName, toOptions,
 } from './address.js';
 
 const hn = { id: 201, name: 'Hà Nội' };
@@ -87,5 +88,40 @@ describe('sortByName / toOptions / findOption', () => {
   });
   it('tolerates a missing list', () => {
     expect(sortByName(undefined)).toEqual([]);
+  });
+});
+
+describe('listStatus / shouldFallbackToText', () => {
+  it('tells an empty loaded list apart from a ready one', () => {
+    expect(listStatus({ status: 'ready', items: [] })).toBe('empty');
+    expect(listStatus({ status: 'ready', items: [{ id: 1 }] })).toBe('ready');
+    expect(listStatus({ status: 'loading', items: [] })).toBe('loading');
+    expect(listStatus({ status: 'error', items: [] })).toBe('error');
+    expect(listStatus({ status: 'idle', items: [] })).toBe('idle');
+    expect(listStatus(undefined)).toBe('idle');
+  });
+  it('falls back to text for a failed or empty province list only', () => {
+    expect(shouldFallbackToText('error')).toBe(true);
+    expect(shouldFallbackToText('empty')).toBe(true);
+    expect(shouldFallbackToText('ready')).toBe(false);
+    expect(shouldFallbackToText('loading')).toBe(false);
+    expect(addressModeFromConfig({ addressMode: 'GHN_IDS' }, shouldFallbackToText('empty'))).toBe('TEXT');
+  });
+});
+
+describe('manual switch to TEXT after choosing ids', () => {
+  const form = { province: '', ward: 'Phường Dịch Vọng', address: '12 Xuân Thủy' };
+  it('sends no ids and the text fields once the mode is TEXT', () => {
+    const before = buildAddressPayload({ mode: 'GHN_IDS', form, selections: full });
+    expect(before.provinceId).toBe(201);
+    const after = buildAddressPayload({ mode: 'TEXT', form: { ...form, province: 'Hà Nội' }, selections: selectionReducer(full, { type: 'reset' }) });
+    expect(after).toEqual({ province: 'Hà Nội', ward: 'Phường Dịch Vọng', address: '12 Xuân Thủy' });
+  });
+});
+
+describe('FOCUS_CHAIN', () => {
+  it('walks from a disabled child up to its enabled ancestors', () => {
+    expect(FOCUS_CHAIN.ward).toEqual(['ward', 'district', 'province']);
+    expect(FOCUS_CHAIN.district).toEqual(['district', 'province']);
   });
 });

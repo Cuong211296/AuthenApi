@@ -69,6 +69,7 @@
   min-height: 28px; padding: 0 2px; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600;
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer; border-radius: 4px;
 }
+.co-loaderr--note { color: var(--muted); font-weight: 400; }
 .co-loaderr__retry:hover { color: var(--accent-strong); }
 .co-fee { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .co-fee__amount { display: inline-block; position: relative; overflow: hidden; border-radius: 6px; transition: opacity 0.2s; }

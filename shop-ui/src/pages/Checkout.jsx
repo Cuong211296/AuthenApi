@@ -7,8 +7,8 @@ import { useGhnAddress } from '../hooks/useGhnAddress.js';
 import { useShippingConfig } from '../hooks/useShippingConfig.js';
 import { useShippingQuote } from '../hooks/useShippingQuote.js';
 import {
-  EMPTY_SELECTION, MODE_IDS, MODE_TEXT, addressModeFromConfig, buildAddressPayload, findOption, isAddressComplete,
-  selectionReducer, toOptions,
+  EMPTY_SELECTION, FOCUS_CHAIN, MODE_IDS, MODE_TEXT, addressModeFromConfig, buildAddressPayload, findOption, isAddressComplete,
+  listStatus, selectionReducer, shouldFallbackToText, toOptions,
 } from '../utils/address.js';
 import { formatVnd } from '../utils/money.js';
 import { checkoutErrors, normalizeCheckoutForm } from '../utils/checkout.js';
@@ -43,14 +43,42 @@ const PAYMENT_OPTIONS = [
 const FIELD_ORDER = ['receiverName', 'phone', 'email', 'province', 'district', 'ward', 'address'];
 const FALLBACK_NOTE = 'Không tải được danh sách địa chỉ, hãy nhập phường/xã thủ công';
 
-/** Inline load failure of a select (announced as an alert) with a retry button; used as the field's hint. */
-function LoadError({ what, onRetry }) {
-  return (
-    <span className="co-loaderr" role="alert">
-      <span>Không tải được {what}.</span>
-      <button type="button" className="co-loaderr__retry" onClick={onRetry}>Thử lại</button>
-    </span>
-  );
+const EMPTY_NOTE = 'Chưa có dữ liệu cho khu vực này, hãy chọn lại hoặc nhập địa chỉ ở ô bên dưới.';
+
+/**
+ * What sits under a dependent select besides a validation error: the load failure (alert + retry) or an empty list
+ * (note + switch to manual text entry) take precedence over validation so the recovery action never disappears.
+ * `data-recover` marks the buttons that submit() focuses when the select itself is not usable.
+ */
+function listNotice({ fieldKey, list, what, onManual }) {
+  const status = listStatus(list);
+  if (status === 'error') {
+    return (
+      <span className="co-loaderr" role="alert">
+        <span>Không tải được {what}.</span>
+        <button type="button" className="co-loaderr__retry" data-recover={fieldKey} onClick={list.retry}>Thử lại</button>
+      </span>
+    );
+  }
+  if (status === 'empty') {
+    return (
+      <span className="co-loaderr co-loaderr--note" role="status">
+        <span>{EMPTY_NOTE}</span>
+        <button type="button" className="co-loaderr__retry" data-recover={fieldKey} onClick={onManual}>Nhập địa chỉ thủ công</button>
+      </span>
+    );
+  }
+  return undefined;
+}
+
+/** Focus the first usable control of a field chain (a recovery button, else the field, else its ancestors). */
+function focusField(key) {
+  for (const k of FOCUS_CHAIN[key] ?? [key]) {
+    const recover = document.querySelector(`[data-recover="${k}"]`);
+    if (recover) { recover.focus(); return; }
+    const el = document.getElementById(`co-${k}`);
+    if (el && !el.disabled) { el.focus(); return; }
+  }
 }
 
 /** Counts smoothly to the new amount (mounted once, so the first render shows the real value). */
@@ -94,9 +122,10 @@ export default function Checkout() {
     provinceId: selections.province?.id,
     districtId: selections.district?.id,
   });
-  const provincesFailed = ghn.provinces.status === 'error';
-  const mode = addressModeFromConfig(config, provincesFailed);
-  const textFallback = config.addressMode === MODE_IDS && mode === MODE_TEXT;
+  const [manualText, setManualText] = useState(false); // the customer chose to type the address (empty/unusable lists)
+  const provincesDown = shouldFallbackToText(listStatus(ghn.provinces));
+  const mode = addressModeFromConfig(config, manualText || provincesDown);
+  const textFallback = provincesDown && mode === MODE_TEXT;
   const addr = useMemo(() => ({ mode, selections }), [mode, selections]);
   const provinceOptions = useMemo(() => toOptions(ghn.provinces.items, 'id'), [ghn.provinces.items]);
   const districtOptions = useMemo(() => toOptions(ghn.districts.items, 'id'), [ghn.districts.items]);
@@ -106,6 +135,12 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false); // guards double submits that arrive before `busy` re-renders
   const [touched, setTouched] = useState({});
+  /** Switch to the text address, keeping the other fields; the chosen ward name is carried over as text. */
+  const enterManual = () => {
+    setForm((f) => ({ ...f, ward: f.ward || selections.ward?.name || '' }));
+    dispatchSel({ type: 'reset' });
+    setManualText(true);
+  };
   const [submitted, setSubmitted] = useState(false);
   const set = (key) => (e) => { const { value } = e.target; setForm((f) => ({ ...f, [key]: value })); };
   const blur = (key) => () => setTouched((t) => ({ ...t, [key]: true }));
@@ -144,6 +179,12 @@ export default function Checkout() {
   const [rejectedKey, setRejectedKey] = useState('');
   const notDeliverable = (quote.state === 'ready' && quote.quote?.deliverable === false) || rejectedKey === addressKey;
   const hasUnavailable = cart.items.some((i) => !i.available);
+  const noticeDistrict = listNotice({
+    fieldKey: 'district', list: ghn.districts, what: 'danh sách quận/huyện', onManual: enterManual,
+  });
+  const noticeWard = listNotice({
+    fieldKey: 'ward', list: ghn.wards, what: 'danh sách phường/xã', onManual: enterManual,
+  });
   const errors = useMemo(() => checkoutErrors(form, addr), [form, addr]);
   const shown = (key) => (submitted || touched[key] ? errors[key] : undefined);
 
@@ -154,7 +195,7 @@ export default function Checkout() {
     setSubmitted(true);
     const firstInvalid = FIELD_ORDER.find((key) => errors[key]);
     if (firstInvalid) {
-      document.getElementById(`co-${firstInvalid}`)?.focus();
+      focusField(firstInvalid);
       return;
     }
     const payload = normalizeCheckoutForm(form, addr);
@@ -168,7 +209,7 @@ export default function Checkout() {
       setBusy(false);
       if (err.code === 2018) {
         setRejectedKey(addressKey);
-        return document.getElementById('co-ward')?.focus();
+        return focusField('ward');
       }
       return setError(err.code === 1011
         ? 'Thông tin chưa hợp lệ. Hãy kiểm tra lại họ tên, số điện thoại, email và địa chỉ.'
@@ -252,6 +293,7 @@ export default function Checkout() {
                     as="select" id="co-province" label="Tỉnh/Thành" autoComplete="address-level1" required
                     value={selections.province ? String(selections.province.id) : ''}
                     disabled={ghn.provinces.status === 'loading'}
+                    aria-busy={ghn.provinces.status === 'loading' ? true : undefined}
                     onChange={(e) => dispatchSel({ type: 'province', option: findOption(provinceOptions, e.target.value) })}
                     onBlur={blur('province')} error={shown('province')}
                   >
@@ -262,9 +304,11 @@ export default function Checkout() {
                     as="select" id="co-district" label="Quận/Huyện" autoComplete="address-level2" required
                     value={selections.district ? String(selections.district.id) : ''}
                     disabled={!selections.province || ghn.districts.status !== 'ready'}
+                    aria-busy={ghn.districts.status === 'loading' ? true : undefined}
                     onChange={(e) => dispatchSel({ type: 'district', option: findOption(districtOptions, e.target.value) })}
-                    onBlur={blur('district')} error={shown('district')}
-                    hint={ghn.districts.status === 'error' ? <LoadError what="danh sách quận/huyện" onRetry={ghn.districts.retry} /> : undefined}
+                    onBlur={blur('district')}
+                    error={noticeDistrict ? undefined : shown('district')}
+                    hint={noticeDistrict ?? (selections.province ? undefined : 'Chọn tỉnh/thành trước')}
                   >
                     <option value="">{ghn.districts.status === 'loading' ? 'Đang tải...' : 'Chọn quận/huyện'}</option>
                     {districtOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -273,9 +317,11 @@ export default function Checkout() {
                     className="co-fields__wide" as="select" id="co-ward" label="Phường/Xã" autoComplete="address-level3" required
                     value={selections.ward ? selections.ward.code : ''}
                     disabled={!selections.district || ghn.wards.status !== 'ready'}
+                    aria-busy={ghn.wards.status === 'loading' ? true : undefined}
                     onChange={(e) => dispatchSel({ type: 'ward', option: findOption(wardOptions, e.target.value) })}
-                    onBlur={blur('ward')} error={shown('ward')}
-                    hint={ghn.wards.status === 'error' ? <LoadError what="danh sách phường/xã" onRetry={ghn.wards.retry} /> : undefined}
+                    onBlur={blur('ward')}
+                    error={noticeWard ? undefined : shown('ward')}
+                    hint={noticeWard ?? (selections.district ? undefined : 'Chọn quận/huyện trước')}
                   >
                     <option value="">{ghn.wards.status === 'loading' ? 'Đang tải...' : 'Chọn phường/xã'}</option>
                     {wardOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
