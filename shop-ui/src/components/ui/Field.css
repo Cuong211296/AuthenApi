@@ -5,6 +5,8 @@
 .ui-field__control > :where(input, select, textarea) { padding: 12px 16px; min-height: 50px; border-radius: 12px; }
 .ui-field__control--textarea > textarea { resize: vertical; min-height: 88px; line-height: 1.5; }
 .ui-field__control--select > select { appearance: none; -webkit-appearance: none; padding-right: 44px; cursor: pointer; }
+.ui-field__control--select > select:disabled { cursor: not-allowed; color: var(--muted); background: var(--ink-soft); }
+.ui-field__control--select > select:disabled ~ .ui-field__chevron { opacity: 0.5; }
 .ui-field__chevron { position: absolute; right: 16px; top: 50%; margin-top: -9px; color: var(--muted); pointer-events: none; }
 .ui-field__control.has-toggle > input { padding-right: 52px; }
 .ui-field__toggle {

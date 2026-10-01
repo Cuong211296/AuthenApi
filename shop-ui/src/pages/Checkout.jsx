@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useCart } from '../context/CartContext.jsx';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber.js';
+import { useGhnAddress } from '../hooks/useGhnAddress.js';
+import { useShippingConfig } from '../hooks/useShippingConfig.js';
 import { useShippingQuote } from '../hooks/useShippingQuote.js';
+import {
+  EMPTY_SELECTION, MODE_IDS, MODE_TEXT, addressModeFromConfig, buildAddressPayload, findOption, isAddressComplete,
+  selectionReducer, toOptions,
+} from '../utils/address.js';
 import { formatVnd } from '../utils/money.js';
 import { checkoutErrors, normalizeCheckoutForm } from '../utils/checkout.js';
 import {
-  NOT_DELIVERABLE_MESSAGE, cartKeyOf, formatWeight, orderTotal, quoteInputsReady, shippingDisplay,
+  NOT_DELIVERABLE_MESSAGE, cartKeyOf, formatWeight, orderTotal, shippingDisplay, shippingHint,
 } from '../utils/shipping.js';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -34,7 +40,18 @@ const PAYMENT_OPTIONS = [
   },
 ];
 
-const FIELD_ORDER = ['receiverName', 'phone', 'email', 'province', 'ward', 'address'];
+const FIELD_ORDER = ['receiverName', 'phone', 'email', 'province', 'district', 'ward', 'address'];
+const FALLBACK_NOTE = 'Không tải được danh sách địa chỉ, hãy nhập phường/xã thủ công';
+
+/** Inline load failure of a select (announced as an alert) with a retry button; used as the field's hint. */
+function LoadError({ what, onRetry }) {
+  return (
+    <span className="co-loaderr" role="alert">
+      <span>Không tải được {what}.</span>
+      <button type="button" className="co-loaderr__retry" onClick={onRetry}>Thử lại</button>
+    </span>
+  );
+}
 
 /** Counts smoothly to the new amount (mounted once, so the first render shows the real value). */
 function Money({ value, className }) {
@@ -70,6 +87,20 @@ export default function Checkout() {
   const { cart, reload } = useCart();
   const navigate = useNavigate();
   const [provinces, setProvinces] = useState([]);
+  const { config, loading: configLoading } = useShippingConfig();
+  const [selections, dispatchSel] = useReducer(selectionReducer, EMPTY_SELECTION);
+  const ghn = useGhnAddress({
+    enabled: config.addressMode === MODE_IDS,
+    provinceId: selections.province?.id,
+    districtId: selections.district?.id,
+  });
+  const provincesFailed = ghn.provinces.status === 'error';
+  const mode = addressModeFromConfig(config, provincesFailed);
+  const textFallback = config.addressMode === MODE_IDS && mode === MODE_TEXT;
+  const addr = useMemo(() => ({ mode, selections }), [mode, selections]);
+  const provinceOptions = useMemo(() => toOptions(ghn.provinces.items, 'id'), [ghn.provinces.items]);
+  const districtOptions = useMemo(() => toOptions(ghn.districts.items, 'id'), [ghn.districts.items]);
+  const wardOptions = useMemo(() => toOptions(ghn.wards.items, 'code'), [ghn.wards.items]);
   const [form, setForm] = useState({ receiverName: '', phone: '', email: '', address: '', ward: '', province: '', note: '', paymentMethod: 'MOMO' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -82,13 +113,15 @@ export default function Checkout() {
   const [loaded, setLoaded] = useState(false);
   const [placed, setPlaced] = useState(false);
 
+  // The fixed-table province list is only needed for the text address (also the fallback when GHN data is down).
   useEffect(() => {
+    if (mode !== MODE_TEXT || configLoading) return undefined;
     let ignore = false;
     api('GET', '/shipping/provinces', undefined, { auth: false })
       .then((list) => { if (!ignore) setProvinces(list); })
       .catch((e) => { if (!ignore) setError(e.message); });
     return () => { ignore = true; };
-  }, []);
+  }, [mode, configLoading]);
 
   // Refresh availability/stock before the customer submits.
   useEffect(() => {
@@ -98,21 +131,20 @@ export default function Checkout() {
   }, [reload]);
 
   const tableFee = useMemo(() => provinces.find((p) => p.province === form.province)?.fee ?? 0, [provinces, form.province]);
+  const addressPayload = buildAddressPayload({ mode, form, selections });
   const quote = useShippingQuote({
-    province: form.province,
-    ward: form.ward,
-    address: form.address,
+    address: addressPayload,
     cartKey: cartKeyOf(cart),
-    enabled: loaded && !placed && cart.items.length > 0 && quoteInputsReady(form),
+    enabled: loaded && !configLoading && !placed && cart.items.length > 0 && isAddressComplete(mode, form, selections),
   });
-  const ship = shippingDisplay({ state: quote.state, quote: quote.quote, tableFee, province: form.province });
+  const ship = shippingDisplay({ state: quote.state, quote: quote.quote, tableFee, province: form.province, mode });
   const shippingFee = ship?.fee ?? 0;
   // The address the server rejected at checkout (2018); the block lifts as soon as the address changes.
-  const addressKey = `${form.province}|${form.ward.trim()}|${form.address.trim()}`;
+  const addressKey = JSON.stringify(addressPayload);
   const [rejectedKey, setRejectedKey] = useState('');
   const notDeliverable = (quote.state === 'ready' && quote.quote?.deliverable === false) || rejectedKey === addressKey;
   const hasUnavailable = cart.items.some((i) => !i.available);
-  const errors = useMemo(() => checkoutErrors(form), [form]);
+  const errors = useMemo(() => checkoutErrors(form, addr), [form, addr]);
   const shown = (key) => (submitted || touched[key] ? errors[key] : undefined);
 
   async function submit(e) {
@@ -125,7 +157,7 @@ export default function Checkout() {
       document.getElementById(`co-${firstInvalid}`)?.focus();
       return;
     }
-    const payload = normalizeCheckoutForm(form);
+    const payload = normalizeCheckoutForm(form, addr);
     inFlight.current = true;
     setBusy(true);
     let order;
@@ -135,7 +167,7 @@ export default function Checkout() {
       inFlight.current = false;
       setBusy(false);
       if (err.code === 2018) {
-        setRejectedKey(`${payload.province}|${payload.ward}|${payload.address}`);
+        setRejectedKey(addressKey);
         return document.getElementById('co-ward')?.focus();
       }
       return setError(err.code === 1011
@@ -173,7 +205,7 @@ export default function Checkout() {
         <p>Đang xử lý đơn hàng. Vui lòng không đóng trang này.</p>
       </div>
     );
-  } else if (!loaded) {
+  } else if (!loaded || configLoading) {
     content = <CheckoutSkeleton />;
   } else if (cart.items.length === 0) {
     content = (
@@ -214,17 +246,61 @@ export default function Checkout() {
                 onChange={set('email')} onBlur={blur('email')} error={shown('email')} autoComplete="email" required
                 placeholder="ten@example.com"
               />
-              <Field
-                as="select" id="co-province" label="Tỉnh/Thành" value={form.province} onChange={set('province')}
-                onBlur={blur('province')} error={shown('province')} autoComplete="address-level1" required
-              >
-                <option value="">Chọn tỉnh/thành</option>
-                {provinces.map((p) => <option key={p.id} value={p.province}>{p.province}</option>)}
-              </Field>
-              <Field
-                id="co-ward" label="Phường/Xã" value={form.ward} onChange={set('ward')} onBlur={blur('ward')}
-                error={shown('ward')} maxLength={100} autoComplete="address-level2" required placeholder="Ví dụ: Phường 14"
-              />
+              {mode === MODE_IDS ? (
+                <>
+                  <Field
+                    as="select" id="co-province" label="Tỉnh/Thành" autoComplete="address-level1" required
+                    value={selections.province ? String(selections.province.id) : ''}
+                    disabled={ghn.provinces.status === 'loading'}
+                    onChange={(e) => dispatchSel({ type: 'province', option: findOption(provinceOptions, e.target.value) })}
+                    onBlur={blur('province')} error={shown('province')}
+                  >
+                    <option value="">{ghn.provinces.status === 'loading' ? 'Đang tải...' : 'Chọn tỉnh/thành'}</option>
+                    {provinceOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </Field>
+                  <Field
+                    as="select" id="co-district" label="Quận/Huyện" autoComplete="address-level2" required
+                    value={selections.district ? String(selections.district.id) : ''}
+                    disabled={!selections.province || ghn.districts.status !== 'ready'}
+                    onChange={(e) => dispatchSel({ type: 'district', option: findOption(districtOptions, e.target.value) })}
+                    onBlur={blur('district')} error={shown('district')}
+                    hint={ghn.districts.status === 'error' ? <LoadError what="danh sách quận/huyện" onRetry={ghn.districts.retry} /> : undefined}
+                  >
+                    <option value="">{ghn.districts.status === 'loading' ? 'Đang tải...' : 'Chọn quận/huyện'}</option>
+                    {districtOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </Field>
+                  <Field
+                    className="co-fields__wide" as="select" id="co-ward" label="Phường/Xã" autoComplete="address-level3" required
+                    value={selections.ward ? selections.ward.code : ''}
+                    disabled={!selections.district || ghn.wards.status !== 'ready'}
+                    onChange={(e) => dispatchSel({ type: 'ward', option: findOption(wardOptions, e.target.value) })}
+                    onBlur={blur('ward')} error={shown('ward')}
+                    hint={ghn.wards.status === 'error' ? <LoadError what="danh sách phường/xã" onRetry={ghn.wards.retry} /> : undefined}
+                  >
+                    <option value="">{ghn.wards.status === 'loading' ? 'Đang tải...' : 'Chọn phường/xã'}</option>
+                    {wardOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field
+                    as="select" id="co-province" label="Tỉnh/Thành" value={form.province} onChange={set('province')}
+                    onBlur={blur('province')} error={shown('province')} autoComplete="address-level1" required
+                  >
+                    <option value="">Chọn tỉnh/thành</option>
+                    {provinces.map((p) => <option key={p.id} value={p.province}>{p.province}</option>)}
+                  </Field>
+                  <Field
+                    id="co-ward" label="Phường/Xã" value={form.ward} onChange={set('ward')} onBlur={blur('ward')}
+                    error={shown('ward')} maxLength={100} autoComplete="address-level2" required placeholder="Ví dụ: Phường 14"
+                  />
+                  {textFallback && (
+                    <p className="co-alert co-alert--info co-fields__wide" role="status">
+                      <AlertIcon size={18} /><span>{FALLBACK_NOTE}</span>
+                    </p>
+                  )}
+                </>
+              )}
               <Field
                 className="co-fields__wide" id="co-address" label="Địa chỉ" value={form.address} onChange={set('address')}
                 onBlur={blur('address')} error={shown('address')} maxLength={300} autoComplete="street-address" required
@@ -274,11 +350,15 @@ export default function Checkout() {
             <div>
               <dt>Phí vận chuyển</dt>
               <dd aria-busy={ship?.busy ? true : undefined}>
-                {ship ? (
+                {ship?.pending ? (
+                  <span className="co-rows__hint" role="status">Đang tính phí...</span>
+                ) : ship ? (
                   <>
                     <span className={`co-fee ${ship.busy ? 'is-busy' : ''}`}>
                       <Badge tone={ship.tone}>{ship.label}</Badge>
-                      <Money value={shippingFee} className="co-fee__amount" />
+                      {ship.unknownFee
+                        ? <span className="tabular co-fee__amount">—</span>
+                        : <Money value={shippingFee} className="co-fee__amount" />}
                     </span>
                     {(ship.note || ship.weightGrams) && (
                       <span className="co-fee__note">
@@ -287,10 +367,10 @@ export default function Checkout() {
                       </span>
                     )}
                     <span className="sr-only" role="status">
-                      {ship.busy ? 'Đang tính phí vận chuyển' : `Phí vận chuyển ${formatVnd(shippingFee)}, ${ship.label}`}
+                      {ship.busy ? 'Đang tính phí vận chuyển' : ship.unknownFee ? ship.note : `Phí vận chuyển ${formatVnd(shippingFee)}, ${ship.label}`}
                     </span>
                   </>
-                ) : <span className="co-rows__hint">Chọn tỉnh/thành</span>}
+                ) : <span className="co-rows__hint">{shippingHint(mode)}</span>}
               </dd>
             </div>
           </dl>

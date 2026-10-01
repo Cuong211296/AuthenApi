@@ -61,6 +61,7 @@ function OrderDetail({ order, id }) {
               {order.email && (<><dt>Email</dt><dd>{order.email}</dd></>)}
               <dt>Địa chỉ</dt><dd>{order.address}</dd>
               {order.ward && (<><dt>Phường/Xã</dt><dd>{order.ward}</dd></>)}
+              {order.district && (<><dt>Quận/Huyện</dt><dd>{order.district}</dd></>)}
               <dt>Tỉnh/Thành</dt><dd>{order.province}</dd>
               {order.note && (<><dt>Ghi chú</dt><dd>{order.note}</dd></>)}
             </dl>

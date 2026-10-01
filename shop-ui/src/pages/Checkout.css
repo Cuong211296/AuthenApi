@@ -11,6 +11,7 @@
   font-size: var(--fs-small); font-weight: 500; line-height: 1.5;
 }
 .co-alert svg { flex: none; margin-top: 2px; }
+.co-alert--info { background: var(--info-soft); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 22%, transparent); }
 .co-alert--error { background: var(--danger-soft); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent); }
 .co-alert a { color: inherit; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
 
@@ -63,6 +64,12 @@
 .co-rows dt { color: var(--muted); white-space: nowrap; }
 .co-rows dd { margin: 0; font-weight: 500; text-align: right; }
 .co-rows__hint { color: var(--muted); font-weight: 400; font-size: var(--fs-small); }
+.co-loaderr { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; color: var(--danger); font-weight: 500; }
+.co-loaderr__retry {
+  min-height: 28px; padding: 0 2px; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; border-radius: 4px;
+}
+.co-loaderr__retry:hover { color: var(--accent-strong); }
 .co-fee { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .co-fee__amount { display: inline-block; position: relative; overflow: hidden; border-radius: 6px; transition: opacity 0.2s; }
 .co-fee.is-busy .co-fee__amount { opacity: 0.4; }

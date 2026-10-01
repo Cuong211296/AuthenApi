@@ -79,3 +79,51 @@ describe('checkoutErrors', () => {
     expect(isValidEmail('ten@example.com')).toBe(true);
   });
 });
+
+describe('GHN_IDS mode', () => {
+  const selections = {
+    province: { id: 201, name: 'Hà Nội' },
+    district: { id: 1490, name: 'Quận Cầu Giấy' },
+    ward: { code: '1A0101', name: 'Phường Dịch Vọng' },
+  };
+  const address = { mode: 'GHN_IDS', selections };
+  const ok = { ...base, receiverName: 'A', phone: '0901234567', email: 'a@b.com', ward: '', address: ' 12 Xuân Thủy ', province: '' };
+
+  it('takes ids and names from the selects instead of the text fields', () => {
+    const out = normalizeCheckoutForm({ ...ok, province: 'ignored', ward: 'ignored' }, address);
+    expect(out).toMatchObject({
+      provinceId: 201, districtId: 1490, wardCode: '1A0101',
+      province: 'Hà Nội', district: 'Quận Cầu Giấy', ward: 'Phường Dịch Vọng', address: '12 Xuân Thủy',
+    });
+  });
+
+  it('text mode sends no ids', () => {
+    const out = normalizeCheckoutForm(base);
+    expect(out).not.toHaveProperty('provinceId');
+    expect(out).not.toHaveProperty('wardCode');
+  });
+
+  it('is valid when all three selects are chosen (text fields are not required)', () => {
+    expect(checkoutErrors(ok, address)).toEqual({});
+  });
+
+  it('asks for each missing select with its own message', () => {
+    expect(checkoutErrors(ok, { mode: 'GHN_IDS', selections: { province: null, district: null, ward: null } }))
+      .toEqual({ province: 'Hãy chọn tỉnh/thành', district: 'Hãy chọn quận/huyện', ward: 'Hãy chọn phường/xã' });
+    expect(checkoutErrors(ok, { mode: 'GHN_IDS', selections: { ...selections, ward: null } }))
+      .toEqual({ ward: 'Hãy chọn phường/xã' });
+    expect(checkoutErrors(ok, { mode: 'GHN_IDS', selections: { ...selections, district: null, ward: null } }))
+      .toEqual({ district: 'Hãy chọn quận/huyện', ward: 'Hãy chọn phường/xã' });
+  });
+
+  it('still validates the non-address fields and the street address', () => {
+    const e = checkoutErrors({ ...ok, phone: '', address: ' ' }, address);
+    expect(Object.keys(e).sort()).toEqual(['address', 'phone']);
+  });
+
+  it('text mode keeps the old messages when an address arg says TEXT', () => {
+    expect(checkoutErrors({ ...ok, province: '', ward: '' }, { mode: 'TEXT', selections })).toMatchObject({
+      province: 'Hãy chọn tỉnh/thành', ward: 'Vui lòng nhập phường/xã',
+    });
+  });
+});

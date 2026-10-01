@@ -1,8 +1,9 @@
 import {
-  cartKeyOf, describeQuote, formatWeight, orderTotal, quoteErrorMessage, quoteInputsReady, shippingDisplay, shippingSourceLabel,
+  cartKeyOf, describeQuote, formatWeight, orderTotal, quoteErrorMessage, quoteInputsReady, shippingDisplay, shippingHint, shippingSourceLabel,
 } from './shipping.js';
 
 const ghtk = { fee: 32000, source: 'GHTK', estimated: false, weightGrams: 600, deliverable: true, message: null };
+const ghn = { fee: 28000, source: 'GHN', estimated: false, weightGrams: 600, deliverable: true, message: null };
 const table = { fee: 35000, source: 'TABLE', estimated: true, weightGrams: 600, deliverable: true, message: 'GHTK tạm thời không khả dụng' };
 
 describe('quoteInputsReady', () => {
@@ -21,6 +22,41 @@ describe('describeQuote', () => {
   it('labels table and estimated fees as provisional and keeps the server message', () => {
     expect(describeQuote(table)).toEqual({ label: 'Phí tạm tính', tone: 'warn', note: 'GHTK tạm thời không khả dụng' });
     expect(describeQuote({ ...ghtk, estimated: true }).label).toBe('Phí tạm tính');
+  });
+});
+
+describe('GHN labels', () => {
+  it('labels an exact GHN fee like GHTK (accent) and an estimated one as provisional', () => {
+    expect(describeQuote(ghn)).toEqual({ label: 'Phí GHN', tone: 'accent', note: '' });
+    expect(describeQuote({ ...ghn, estimated: true }).label).toBe('Phí tạm tính');
+  });
+  it('maps the stored GHN source', () => {
+    expect(shippingSourceLabel('GHN')).toEqual({ label: 'Phí GHN', tone: 'accent' });
+  });
+});
+
+describe('shippingDisplay in GHN_IDS mode', () => {
+  const mode = 'GHN_IDS';
+  it('shows the hint (null) until the address is complete, even with a table fee at hand', () => {
+    expect(shippingDisplay({ state: 'idle', quote: null, tableFee: 30000, province: 'Hà Nội', mode })).toBeNull();
+    expect(shippingHint('GHN_IDS')).toBe('Chọn đầy đủ địa chỉ để tính phí');
+    expect(shippingHint('TEXT')).toBe('Chọn tỉnh/thành');
+  });
+  it('shows the GHN fee when ready and dims the previous one while reloading', () => {
+    expect(shippingDisplay({ state: 'ready', quote: ghn, mode })).toMatchObject({ fee: 28000, label: 'Phí GHN', busy: false, provisional: false });
+    expect(shippingDisplay({ state: 'loading', quote: ghn, mode })).toMatchObject({ fee: 28000, label: 'Phí GHN', busy: true });
+  });
+  it('is pending (no table fee) on the first load', () => {
+    expect(shippingDisplay({ state: 'loading', quote: null, tableFee: 30000, mode })).toMatchObject({ pending: true, busy: true, fee: 0 });
+  });
+  it('a failed quote has an unknown fee and the non-blocking note', () => {
+    const failed = shippingDisplay({ state: 'error', quote: null, tableFee: 30000, mode });
+    expect(failed).toMatchObject({ unknownFee: true, fee: 0, label: 'Phí tạm tính' });
+    expect(failed.note).toMatch(/sẽ chốt khi đặt hàng/);
+  });
+  it('shows a TABLE fallback quote with the server message', () => {
+    expect(shippingDisplay({ state: 'ready', quote: { ...table, message: 'Không kết nối được GHN, dùng phí tạm tính' }, mode }))
+      .toMatchObject({ label: 'Phí tạm tính', note: 'Không kết nối được GHN, dùng phí tạm tính' });
   });
 });
 

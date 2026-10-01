@@ -193,7 +193,7 @@ export default function OrderDetail() {
             <address className="od-address">
               <strong>{order.receiverName}</strong>
               <span>{order.phone}</span>
-              <span>{[order.address, order.ward, order.province].filter(Boolean).join(', ')}</span>
+              <span>{[order.address, order.ward, order.district, order.province].filter(Boolean).join(', ')}</span>
             </address>
             {order.note && <p className="od-note">Ghi chú: {order.note}</p>}
           </section>

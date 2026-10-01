@@ -1,7 +1,9 @@
-/** Pure helpers for the checkout shipping quote (GHTK with a fixed-table fallback). */
+/** Pure helpers for the checkout shipping quote (GHN or GHTK, with a fixed-table fallback). */
 
 export const NOT_DELIVERABLE_MESSAGE = 'Địa chỉ này chưa hỗ trợ giao hàng. Hãy kiểm tra lại phường/xã và địa chỉ.';
 export const IDLE_NOTE = 'Nhập phường/xã để tính phí chính xác';
+export const IDS_HINT = 'Chọn đầy đủ địa chỉ để tính phí';
+export const TEXT_HINT = 'Chọn tỉnh/thành';
 export const QUOTE_FAILED_NOTE = 'Không tính được phí chính xác, sẽ chốt khi đặt hàng';
 
 /** A quote can be requested once the province and the ward are filled in (address is optional for the server). */
@@ -9,19 +11,22 @@ export function quoteInputsReady(form) {
   return Boolean(String(form?.province ?? '').trim() && String(form?.ward ?? '').trim());
 }
 
-/** Badge text/tone and the server's explanation for a quote response. Only an exact GHTK fee gets the GHTK label. */
+const CARRIER_LABEL = { GHN: 'Phí GHN', GHTK: 'Phí GHTK' };
+
+/** Badge text/tone and the server's explanation for a quote response. Only an exact carrier fee gets the carrier label. */
 export function describeQuote(quote) {
-  const exact = quote?.source === 'GHTK' && !quote?.estimated;
+  const carrierLabel = CARRIER_LABEL[quote?.source];
+  const exact = Boolean(carrierLabel) && !quote?.estimated;
   return {
-    label: exact ? 'Phí GHTK' : 'Phí tạm tính',
+    label: exact ? carrierLabel : 'Phí tạm tính',
     tone: exact ? 'accent' : 'warn',
     note: typeof quote?.message === 'string' ? quote.message.trim() : '',
   };
 }
 
-/** Label of a stored order's shippingSource ('GHTK' | 'TABLE' | null for old orders); null when unknown. */
+/** Label of a stored order's shippingSource ('GHN' | 'GHTK' | 'TABLE' | null for old orders); null when unknown. */
 export function shippingSourceLabel(source) {
-  if (source === 'GHTK') return { label: 'Phí GHTK', tone: 'accent' };
+  if (CARRIER_LABEL[source]) return { label: CARRIER_LABEL[source], tone: 'accent' };
   if (source === 'TABLE') return { label: 'Phí tạm tính', tone: 'warn' };
   return null;
 }
@@ -33,12 +38,24 @@ export function formatWeight(grams) {
   return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(g / 1000)} kg`;
 }
 
+/** Text shown in the summary while no fee can be displayed yet. */
+export const shippingHint = (mode) => (mode === 'GHN_IDS' ? IDS_HINT : TEXT_HINT);
+
 /**
  * Which shipping fee the summary shows.
  * ready -> the quote; loading -> the previous quote (dimmed) or the province table fee; idle/error -> the table fee.
- * Returns { fee, label, tone, note, weightGrams, provisional, busy } or null while no province is chosen.
+ * GHN_IDS mode has no table fee (GHN names differ from the table): idle -> null (show the hint), first load ->
+ * `pending`, failure -> `unknownFee` with the non-blocking note.
+ * Returns { fee, label, tone, note, weightGrams, provisional, busy, pending?, unknownFee? } or null when only the hint applies.
  */
-export function shippingDisplay({ state, quote, tableFee, province }) {
+export function shippingDisplay({ state, quote, tableFee, province, mode = 'TEXT' }) {
+  if (mode === 'GHN_IDS') {
+    if (state === 'ready' && quote) return { fee: quote.fee, ...describeQuote(quote), weightGrams: quote.weightGrams ?? null, provisional: false, busy: false };
+    if (state === 'loading' && quote) return { fee: quote.fee, ...describeQuote(quote), weightGrams: quote.weightGrams ?? null, provisional: false, busy: true };
+    if (state === 'loading') return { fee: 0, label: 'Phí tạm tính', tone: 'warn', note: '', weightGrams: null, provisional: true, busy: true, pending: true };
+    if (state === 'error') return { fee: 0, label: 'Phí tạm tính', tone: 'warn', note: QUOTE_FAILED_NOTE, weightGrams: null, provisional: true, busy: false, unknownFee: true };
+    return null;
+  }
   if (!province) return null;
   if (state === 'ready' && quote) {
     const d = describeQuote(quote);
