@@ -3,6 +3,7 @@ package com.example.identifyservice.service;
 import com.example.identifyservice.dto.request.CheckoutRequest;
 import com.example.identifyservice.dto.response.OrderResponse;
 import com.example.identifyservice.dto.response.PageResponse;
+import com.example.identifyservice.dto.response.ShippingQuote;
 import com.example.identifyservice.configuration.ShopProperties;
 import com.example.identifyservice.entity.*;
 import com.example.identifyservice.enums.OrderStatus;
@@ -44,6 +45,7 @@ public class OrderService {
     CartRepository cartRepository;
     ProductVariantRepository variantRepository;
     ShippingService shippingService;
+    ShippingQuoteService shippingQuoteService;
     CurrentUserService currentUserService;
     ShopProperties shopProperties;
     ApplicationEventPublisher eventPublisher;
@@ -53,7 +55,11 @@ public class OrderService {
         User user = currentUserService.requireUser();
         Cart cart = cartRepository.findByUser(user).orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY));
         if (cart.getItems().isEmpty()) throw new AppException(ErrorCode.CART_EMPTY);
-        ShippingRate rate = shippingService.requireRate(request.province());
+        // Shipping is computed server-side only (GHTK, else the table) and before any stock is touched.
+        ShippingQuote quote = shippingQuoteService.quote(cart, request.province(), request.ward(), request.address());
+        if (!quote.deliverable()) throw new AppException(ErrorCode.SHIPPING_NOT_AVAILABLE);
+        String province = shippingService.findRate(request.province()).map(ShippingRate::getProvince)
+                .orElse(request.province().trim());
 
         Instant now = Instant.now();
         boolean momo = request.paymentMethod() == PaymentMethod.MOMO;
@@ -67,10 +73,12 @@ public class OrderService {
                 .phone(request.phone().trim())
                 .email(request.email().trim())
                 .address(request.address().trim())
-                .province(rate.getProvince())
+                .province(province)
                 .ward(request.ward().trim())
+                .shippingSource(quote.source())
+                .weightGrams(quote.weightGrams())
                 .note(request.note() == null || request.note().isBlank() ? null : request.note().trim())
-                .shippingFee(rate.getFee())
+                .shippingFee(quote.fee())
                 .expiresAt(momo ? now.plus(shopProperties.orderExpiryMinutes(), ChronoUnit.MINUTES) : null)
                 .build();
 
@@ -88,7 +96,7 @@ public class OrderService {
                     .unitPrice(unitPrice).unitCost(product.getCostPrice()).quantity(cartItem.getQuantity()).build());
         }
         order.setSubtotal(subtotal);
-        order.setTotal(subtotal + rate.getFee());
+        order.setTotal(subtotal + quote.fee());
         orderRepository.save(order);
 
         cart.getItems().clear();

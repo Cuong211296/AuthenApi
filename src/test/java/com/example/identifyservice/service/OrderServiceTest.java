@@ -11,6 +11,9 @@ import com.example.identifyservice.exception.AppException;
 import com.example.identifyservice.exception.ErrorCode;
 import com.example.identifyservice.repository.OrderRepository;
 import com.example.identifyservice.repository.ProductVariantRepository;
+import com.example.identifyservice.enums.ShippingSource;
+import com.example.identifyservice.ghtk.GhtkFeeResult;
+import com.example.identifyservice.testsupport.FakeGhtkGateway;
 import com.example.identifyservice.testsupport.TestDataFactory;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -41,12 +44,16 @@ class OrderServiceTest {
     @Autowired ProductVariantRepository variants;
     @Autowired EntityManager em;
     @Autowired OrderRepository orderRepository;
+    @Autowired FakeGhtkGateway ghtk;
+    @Autowired ShippingQuoteService quoteService;
 
     Product tee;
     ProductVariant m;
 
     @BeforeEach
     void setUp() {
+        ghtk.reset();
+        quoteService.clearCache();
         data.user("alice");
         data.user("bob");
         tee = data.product("basic-tee", 200_000, true);
@@ -248,6 +255,60 @@ class OrderServiceTest {
         em.flush();
         em.clear();
         assertThat(orderRepository.findByCode(order.code()).orElseThrow().getItems().get(0).getUnitCost()).isNull();
+    }
+
+    @Test
+    void ghtkFeeIsAppliedToTheTotalAndSourceWeightWardAreStored() {
+        ghtk.returnFee(31_000);
+        cart.addItem(m.getId(), 2);
+        OrderResponse order = orders.checkout(request(PaymentMethod.COD, "Hà Nội"));
+
+        assertThat(order.subtotal()).isEqualTo(400_000);
+        assertThat(order.shippingFee()).isEqualTo(31_000);
+        assertThat(order.total()).isEqualTo(431_000);
+        assertThat(order.shippingSource()).isEqualTo(ShippingSource.GHTK);
+        assertThat(order.weightGrams()).isEqualTo(600);          // 2 x default 300 g
+        assertThat(order.ward()).isEqualTo("Phường 1");
+        assertThat(order.province()).isEqualTo("Hà Nội");
+        assertThat(ghtk.calls).hasSize(1);
+        assertThat(ghtk.calls.get(0).value()).isEqualTo(400_000);
+    }
+
+    @Test
+    void fallbackTableFeeIsAppliedWithTableSource() {
+        cart.addItem(m.getId(), 1);                               // GHTK is down by default in tests
+        OrderResponse order = orders.checkout(request(PaymentMethod.COD, "hà nội"));
+
+        assertThat(order.shippingFee()).isEqualTo(25_000);
+        assertThat(order.total()).isEqualTo(225_000);
+        assertThat(order.shippingSource()).isEqualTo(ShippingSource.TABLE);
+        assertThat(order.weightGrams()).isEqualTo(300);
+        assertThat(order.province()).isEqualTo("Hà Nội");         // canonical table spelling
+    }
+
+    @Test
+    void undeliverableAddressIsRejectedBeforeAnyStockChange() {
+        ghtk.returnResult(new GhtkFeeResult(true, false, 0, null));
+        cart.addItem(m.getId(), 2);
+
+        assertThatThrownBy(() -> orders.checkout(request(PaymentMethod.COD, "Atlantis")))
+                .isInstanceOf(AppException.class).extracting(e -> codeOf(e)).isEqualTo(ErrorCode.SHIPPING_NOT_AVAILABLE);
+
+        em.flush();
+        em.clear();
+        assertThat(variants.findById(m.getId()).orElseThrow().getStock()).isEqualTo(5);
+        assertThat(orders.myOrders(0, 10).items()).isEmpty();
+        assertThat(cart.getCart().items()).hasSize(1);
+    }
+
+    @Test
+    void unknownProvinceThatGhtkCanDeliverToIsAcceptedAtTheGhtkFee() {
+        ghtk.returnFee(45_000);
+        cart.addItem(m.getId(), 1);
+        OrderResponse order = orders.checkout(request(PaymentMethod.COD, "  Atlantis "));
+        assertThat(order.shippingFee()).isEqualTo(45_000);
+        assertThat(order.province()).isEqualTo("Atlantis");
+        assertThat(order.shippingSource()).isEqualTo(ShippingSource.GHTK);
     }
 
     @Test

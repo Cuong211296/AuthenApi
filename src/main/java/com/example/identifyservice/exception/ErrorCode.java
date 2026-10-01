@@ -32,7 +32,8 @@ public enum ErrorCode {
     PAYMENT_AMOUNT_MISMATCH(2014, "Payment amount mismatch", HttpStatus.BAD_REQUEST),
     PAYMENT_GATEWAY_ERROR(2015, "Payment gateway error", HttpStatus.BAD_GATEWAY),
     PROVINCE_EXISTED(2016, "Province already exists", HttpStatus.BAD_REQUEST),
-    VARIANT_EXISTED(2017, "Variant with this size and colour already exists", HttpStatus.BAD_REQUEST);
+    VARIANT_EXISTED(2017, "Variant with this size and colour already exists", HttpStatus.BAD_REQUEST),
+    SHIPPING_NOT_AVAILABLE(2018, "Địa chỉ này chưa hỗ trợ giao hàng", HttpStatus.BAD_REQUEST);
 
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

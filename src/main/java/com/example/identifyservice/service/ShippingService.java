@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +28,13 @@ public class ShippingService {
         if (province == null || province.isBlank()) throw new AppException(ErrorCode.INVALID_PROVINCE);
         return repository.findByProvinceIgnoreCase(province.trim())
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_PROVINCE));
+    }
+
+    /** The table entry for the province (case-insensitive), if any. */
+    @Transactional(readOnly = true)
+    public Optional<ShippingRate> findRate(String province) {
+        if (province == null || province.isBlank()) return Optional.empty();
+        return repository.findByProvinceIgnoreCase(province.trim());
     }
 
     @Transactional(readOnly = true)
