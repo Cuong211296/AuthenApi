@@ -66,7 +66,7 @@ export default function AreaChart({ area = true, curve = 'monotone', ...props })
                   animate={{ opacity: active === last ? 0 : 1 }}
                   transition={{ duration: 0.3, delay: active === null ? 0.7 : 0 }}
                 >
-                  <circle className="ch-marker" cx={lastPt.x} cy={lastPt.y} r={4.5} fill={s.color} />
+                  <circle className="ch-marker" cx={lastPt.x} cy={lastPt.y} r={5} fill={s.color} />
                   {layout.endLabelText && (
                     <text className="ch-direct-label" x={lastPt.x + 10} y={lastPt.y} dy="0.34em" textAnchor="start">
                       {layout.endLabelText}
@@ -75,7 +75,7 @@ export default function AreaChart({ area = true, curve = 'monotone', ...props })
                 </motion.g>
               )}
               {active !== null && points[active]?.y != null && (
-                <circle className="ch-marker" cx={points[active].x} cy={points[active].y} r={5} fill={s.color} />
+                <circle className="ch-marker" cx={points[active].x} cy={points[active].y} r={5.5} fill={s.color} />
               )}
             </g>
           );

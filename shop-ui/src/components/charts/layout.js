@@ -100,3 +100,16 @@ export function partShares(values) {
   const total = clean.reduce((a, b) => a + b, 0);
   return { total, shares: clean.map((v) => (total > 0 ? v / total : 0)) };
 }
+
+/**
+ * Left edge (px) of a tooltip of measured width `tipWidth` anchored at `x` inside a plot `containerWidth` wide: right of
+ * the anchor by `gap`, flipped to the left when it would overflow, then clamped inside [0, containerWidth - tipWidth]
+ * (a tooltip wider than the plot sticks to 0).
+ */
+export function tooltipLeft(x, tipWidth, containerWidth, gap = 14) {
+  const w = Math.max(0, tipWidth || 0);
+  const room = Math.max(0, (containerWidth || 0) - w);
+  const right = x + gap;
+  const left = right <= room ? right : x - gap - w;
+  return Math.min(room, Math.max(0, left));
+}

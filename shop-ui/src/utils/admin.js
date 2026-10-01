@@ -42,6 +42,12 @@ export function variantErrors({ stock, priceOverride }) {
   return errors;
 }
 
+/** Optional cost price (admin only): '' / null -> null (unknown), otherwise a non-negative integer (invalid -> null too; validate first). */
+export const costPriceValue = (value) => (String(value ?? '').trim() === '' ? null : parseCount(value));
+
+/** Validation message for the optional cost price field ('' when empty or valid). */
+export const costPriceError = (value) => optionalCountError(value, 'Giá vốn');
+
 /** VariantResponse.price is the effective price: it is an override only when it differs from the base price. */
 export const overrideOf = (variant, basePrice) => (Number(variant.price) !== Number(basePrice) ? String(variant.price) : '');
 
@@ -70,7 +76,7 @@ export const countBy = (items, keyOf) => items.reduce((acc, item) => {
 /** URL slug from a name: diacritics removed, lower-case, words joined with dashes. */
 export const slugify = (s) => normalizeText(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-const PRODUCT_KEYS = ['name', 'slug', 'description', 'categoryId', 'basePrice', 'imageUrl', 'active'];
+const PRODUCT_KEYS = ['name', 'slug', 'description', 'categoryId', 'basePrice', 'costPrice', 'imageUrl', 'active'];
 const str = (v) => (v === null || v === undefined ? '' : String(v));
 
 /** The user-editable parts of an editor state (product fields + per-variant stock/override/active), as plain strings. */

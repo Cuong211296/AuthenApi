@@ -101,7 +101,7 @@ function UserMenu({ session, onLogout }) {
             <ul>
               <li><Link to="/orders">Đơn hàng của tôi</Link></li>
               <li><Link to="/cart">Giỏ hàng</Link></li>
-              {session.isAdmin && <li><Link to="/admin/products">Trang quản trị</Link></li>}
+              {session.isAdmin && <li><Link to="/admin">Trang quản trị</Link></li>}
               <li><button type="button" onClick={onLogout}>Đăng xuất</button></li>
             </ul>
           </motion.div>
@@ -144,7 +144,7 @@ export default function Header() {
     { to: '/', label: 'Cửa hàng', active: activeCategory === '' },
     ...categories.slice(0, 3).map((c) => ({ to: `/?category=${c.slug}`, label: c.name, active: activeCategory === c.slug })),
     ...(session ? [{ to: '/orders', label: 'Đơn hàng', active: location.pathname.startsWith('/orders') }] : []),
-    ...(session?.isAdmin ? [{ to: '/admin/products', label: 'Quản trị', active: location.pathname.startsWith('/admin') }] : []),
+    ...(session?.isAdmin ? [{ to: '/admin', label: 'Quản trị', active: location.pathname.startsWith('/admin') }] : []),
   ];
 
   return (

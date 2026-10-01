@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { barPath, barShare, cartesianLayout, partShares, clampLabelX, lastFiniteIndex, maxIndex, MAX_BAR } from './layout.js';
+import { barPath, barShare, cartesianLayout, partShares, clampLabelX, lastFiniteIndex, maxIndex, MAX_BAR, tooltipLeft } from './layout.js';
 import { formatBucket, formatVndCompact } from './scales.js';
 
 const days = (n) => Array.from({ length: n }, (_, i) => formatBucket(`2026-09-${String((i % 30) + 1).padStart(2, '0')}`));
@@ -114,4 +114,22 @@ describe('partShares', () => {
     expect(partShares([0, 0])).toEqual({ total: 0, shares: [0, 0] });
     expect(partShares(undefined)).toEqual({ total: 0, shares: [] });
   });
+});
+
+describe('tooltipLeft', () => {
+  it('sits to the right of the anchor when it fits', () => expect(tooltipLeft(40, 120, 400)).toBe(54));
+  it('flips to the left of the anchor when the right side overflows', () => expect(tooltipLeft(300, 120, 400)).toBe(166));
+  it('clamps inside the plot when neither side fits (narrow screens)', () => {
+    expect(tooltipLeft(150, 200, 330)).toBe(0);
+    expect(tooltipLeft(10, 200, 330)).toBe(24);
+    expect(tooltipLeft(5, 360, 330)).toBe(0);
+  });
+  it('never returns a negative or overflowing left', () => {
+    for (const x of [0, 20, 165, 310, 330]) {
+      const left = tooltipLeft(x, 180, 330);
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(left + 180).toBeLessThanOrEqual(330);
+    }
+  });
+  it('tolerates an unmeasured width', () => expect(tooltipLeft(40, 0, 400)).toBe(54));
 });

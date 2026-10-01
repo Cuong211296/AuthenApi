@@ -43,7 +43,7 @@ export default function Sparkline({ values = [], width = 120, height = 32, color
         <motion.circle
           cx={last.x}
           cy={last.y}
-          r={3}
+          r={4}
           fill={endColor}
           stroke="#ffffff"
           strokeWidth={1.5}

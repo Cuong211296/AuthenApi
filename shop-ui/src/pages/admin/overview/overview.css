@@ -1,0 +1,177 @@
+/* Admin "Tổng quan" page. Namespaced .ov-. Sizes follow the width of the content column (container queries), not the viewport. */
+.ov { container-type: inline-size; min-width: 0; }
+
+/* ---------- Toolbar ---------- */
+.ov-toolbar {
+  display: grid;
+  gap: 16px;
+  padding: 16px clamp(16px, 2.2vw, 22px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+.ov-toolbar__row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 28px; }
+.ov-toolbar__row--dates { gap: 0 16px; align-items: flex-start; }
+.ov-toolbar__group { display: grid; gap: 6px; min-width: 0; }
+.ov-toolbar__label { font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+.ov-toolbar__note { margin: -4px 0 0; color: var(--muted); font-size: var(--fs-xs); }
+
+.ov-date { flex: 0 1 176px; min-width: 140px; }
+.ov-date input { width: 100%; min-width: 0; min-height: 46px; padding-block: 9px; }
+.ov-compare {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  margin: 27px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+.ov-compare__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px #b8afa5; }
+.ov-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  margin: 27px 0 0 auto;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  transition: border-color var(--t-micro) var(--ease), background var(--t-micro) var(--ease);
+}
+.ov-refresh:hover:not(:disabled) { border-color: var(--ink); background: var(--bg); }
+.ov-refresh:disabled { color: #b3aaa0; cursor: progress; }
+
+/* ---------- Segmented control ---------- */
+.ov-seg {
+  display: inline-flex;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ov-seg__btn {
+  position: relative;
+  flex: none;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  white-space: nowrap;
+  isolation: isolate;
+  transition: color var(--t-std) var(--ease);
+}
+.ov-seg__btn:hover:not(:disabled) { color: var(--ink); }
+.ov-seg__btn.is-pressed { color: var(--ink); }
+.ov-seg__btn:disabled { color: #b3aaa0; cursor: not-allowed; }
+.ov-seg__btn:focus-visible { outline-offset: -2px; }
+.ov-seg__hl {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(20, 17, 15, 0.08), 0 4px 12px -4px rgba(20, 17, 15, 0.14);
+}
+.ov-seg__label { position: relative; }
+
+/* ---------- Body ---------- */
+.ov-body { margin-top: 16px; transition: opacity var(--t-std) var(--ease); }
+.ov-body.is-stale { opacity: 0.55; pointer-events: none; }
+
+/* ---------- KPI tiles ---------- */
+.ov-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ov-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+.ov-kpi--wide { grid-column: 1 / -1; }
+.ov-kpi__label { font-family: var(--font-body); font-size: var(--fs-small); font-weight: 600; letter-spacing: 0; color: var(--muted); line-height: 1.3; }
+.ov-kpi__value {
+  margin: 0;
+  font-size: clamp(1.25rem, 5.4cqw, 1.625rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ov-kpi__value.is-unknown { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; color: var(--muted); padding-block: 4px; }
+.ov-kpi__foot { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; margin-top: auto; }
+.ov-kpi__spark { margin-left: auto; flex: 0 1 96px; width: 96px; min-width: 56px; height: auto; }
+.ov-kpi__note { margin: 0; color: var(--muted); font-size: var(--fs-xs); line-height: 1.45; }
+.ov-kpi .ui-skel { display: block; }
+
+/* delta badge: arrow + signed value; tone colors are semantic (good/bad) and reserved */
+.ov-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px 3px 6px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ov-delta--good { background: var(--success-soft); color: var(--success); }
+.ov-delta--bad { background: var(--danger-soft); color: var(--danger); }
+.ov-delta--neutral { background: var(--surface-2); color: var(--muted); padding-left: 8px; }
+
+/* ---------- Charts ---------- */
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.ov-stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.ov-chart--wide { grid-column: 1 / -1; }
+.ov-lowstock .ch-table-wrap { max-height: none; }
+.ov-lowstock .ch-table :is(th, td):nth-child(2) { white-space: nowrap; }
+
+@container (min-width: 520px) {
+  .ov-kpis { gap: 16px; }
+  .ov-kpi__value { font-size: 1.5rem; }
+}
+@container (min-width: 760px) {
+  .ov-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ov-kpi--wide { grid-column: auto; }
+  .ov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ov-kpi__value { font-size: 1.625rem; }
+}
+
+@container (max-width: 559px) {
+  .ov-lowstock .ch-table :is(th, td):nth-child(3) { display: none; }
+  .ov-lowstock .ch-table th, .ov-lowstock .ch-table td { padding-inline: 10px; }
+  .ov-seg { display: flex; flex-wrap: wrap; width: 100%; border-radius: 22px; }
+  .ov-seg__btn { flex: 1 1 auto; padding: 0 12px; }
+  .ov-toolbar__group { width: 100%; }
+  .ov-toolbar__row--dates { column-gap: 10px; }
+  .ov-date { flex: 1 1 0; min-width: 0; }
+  .ov-date input { padding-inline: 8px 6px; font-size: 0.875rem; }
+  .ov-compare { flex: 1 1 100%; min-height: 0; margin-top: 12px; }
+  .ov-refresh { margin: 12px 0 0; flex: 1 1 100%; justify-content: center; }
+}
+
+@media (pointer: coarse) {
+  .ov-seg__btn { min-height: var(--tap); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ov-body { transition: none; }
+}

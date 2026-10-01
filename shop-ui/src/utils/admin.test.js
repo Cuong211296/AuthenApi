@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countBy, countError, editorSnapshot, filterProducts, isEditorDirty, filterRates, mergeVariants, optionalCountError, overrideOf, parseCount, slugify, variantErrors } from './admin.js';
+import { costPriceError, costPriceValue, countBy, countError, editorSnapshot, filterProducts, isEditorDirty, filterRates, mergeVariants, optionalCountError, overrideOf, parseCount, slugify, variantErrors } from './admin.js';
 
 describe('filterProducts', () => {
   const items = [
@@ -117,4 +117,32 @@ describe('isEditorDirty', () => {
     expect(isEditorDirty(base, added)).toBe(false);
   });
   it('is false without a baseline', () => expect(isEditorDirty(null, editing())).toBe(false));
+});
+
+describe('cost price (optional)', () => {
+  it('maps empty to null and numbers to integers', () => {
+    expect(costPriceValue('')).toBeNull();
+    expect(costPriceValue(null)).toBeNull();
+    expect(costPriceValue(undefined)).toBeNull();
+    expect(costPriceValue('  ')).toBeNull();
+    expect(costPriceValue('120000')).toBe(120000);
+    expect(costPriceValue(0)).toBe(0);
+  });
+  it('validates like the other money fields, but allows empty', () => {
+    expect(costPriceError('')).toBe('');
+    expect(costPriceError('0')).toBe('');
+    expect(costPriceError('-5')).toMatch(/Giá vốn phải là số nguyên không âm/);
+    expect(costPriceError('1.5')).not.toBe('');
+    expect(costPriceError('abc')).not.toBe('');
+  });
+  it('is part of the editor snapshot and the dirty check (null and absent read as empty)', () => {
+    const base = { name: 'A', slug: 'a', basePrice: 100, active: true, variants: [] };
+    const baseline = editorSnapshot({ ...base, costPrice: null });
+    expect(baseline.product.costPrice).toBe('');
+    expect(editorSnapshot(base).product.costPrice).toBe('');
+    expect(isEditorDirty(baseline, { ...base })).toBe(false);
+    expect(isEditorDirty(baseline, { ...base, costPrice: '60000' })).toBe(true);
+    expect(isEditorDirty(editorSnapshot({ ...base, costPrice: 60000 }), { ...base, costPrice: '60000' })).toBe(false);
+    expect(isEditorDirty(editorSnapshot({ ...base, costPrice: 60000 }), { ...base, costPrice: '' })).toBe(true);
+  });
 });

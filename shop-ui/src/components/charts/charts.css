@@ -146,6 +146,8 @@
 .ch-hbar__secondary { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 .ch-hbar__value { font-size: var(--fs-small); font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
 .ch-hbar__track { grid-column: 2 / -1; height: 8px; }
+.ch-hbars--plain .ch-hbar { grid-template-columns: minmax(0, 1fr) auto; }
+.ch-hbars--plain .ch-hbar__track { grid-column: 1 / -1; }
 .ch-hbar__bar { display: block; height: 100%; border-radius: 0 4px 4px 0; transform-origin: left center; }
 
 /* ---------- Part-to-whole stacked bar ---------- */
@@ -156,7 +158,6 @@
 .ch-stack__seg:last-child { border-radius: 0 4px 4px 0; }
 .ch-stack__seg:only-child { border-radius: 4px; }
 .ch-stack__seg.is-dim { opacity: 0.42; }
-.ch-stack__seg:focus-visible { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
 .ch-stack__empty { height: 100%; flex: 1; border-radius: 4px; background: var(--surface-2); }
 .ch-stack__list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .ch-stack__item {

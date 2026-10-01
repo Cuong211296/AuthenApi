@@ -15,13 +15,13 @@ export default function HBarList({ items = [], formatValue = formatVndFull, colo
   const reduce = useReducedMotion();
   const max = items.reduce((m, it) => (Number.isFinite(it.value) && it.value > m ? it.value : m), 0);
   return (
-    <ol className="ch-hbars" aria-label={label}>
+    <ol className={`ch-hbars ${ranked ? '' : 'ch-hbars--plain'}`} aria-label={label}>
       {items.map((it, i) => {
         const value = formatValue(it.value);
         const share = barShare(it.value, max);
         return (
           <li key={it.key ?? `${i}-${it.label}`} className="ch-hbar" title={`${it.label}: ${value}${it.secondary ? ` · ${it.secondary}` : ''}`}>
-            <span className="ch-hbar__rank" aria-hidden={!ranked}>{ranked ? i + 1 : ''}</span>
+            {ranked && <span className="ch-hbar__rank" aria-hidden="true">{i + 1}</span>}
             <span className="ch-hbar__text">
               <span className="ch-hbar__label">{it.label}</span>
               {it.secondary && <span className="ch-hbar__secondary">{it.secondary}</span>}
@@ -30,7 +30,7 @@ export default function HBarList({ items = [], formatValue = formatVndFull, colo
             <span className="ch-hbar__track" aria-hidden="true">
               <motion.span
                 className="ch-hbar__bar"
-                style={{ width: `${share * 100}%`, background: color }}
+                style={{ width: `${share * 100}%`, minWidth: share > 0 ? 2 : 0, background: color }}
                 initial={reduce ? false : { scaleX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ duration: 0.6, delay: Math.min(i * 0.05, 0.4), ease: EASE }}

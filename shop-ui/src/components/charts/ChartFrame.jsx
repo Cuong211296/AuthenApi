@@ -96,7 +96,6 @@ export default function ChartFrame({
   return (
     <figure
       className={`ch-frame ${className}`}
-      role="figure"
       aria-label={label ?? title}
       aria-busy={loading || stale || undefined}
     >
@@ -107,7 +106,7 @@ export default function ChartFrame({
           {value != null && !loading && <div className="ch-frame__value">{value}</div>}
         </div>
         {canTable && (
-          <button type="button" className="ch-frame__toggle" aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}>
+          <button type="button" className="ch-frame__toggle" aria-label="Xem dạng bảng" aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}>
             {showTable ? <ChartIcon size={15} /> : <TableIcon size={15} />}
             {showTable ? 'Xem biểu đồ' : 'Xem dạng bảng'}
           </button>

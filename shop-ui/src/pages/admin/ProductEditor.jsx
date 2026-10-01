@@ -7,10 +7,10 @@ import Switch from '../../components/ui/Switch.jsx';
 import { Skeleton } from '../../components/ui/Skeleton.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
 import { PlusIcon } from '../../components/ui/icons.jsx';
-import { countError, editorSnapshot, isEditorDirty, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors } from '../../utils/admin.js';
+import { costPriceError, costPriceValue, countError, editorSnapshot, isEditorDirty, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors } from '../../utils/admin.js';
 import { Thumb } from './AdminParts.jsx';
 
-const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', imageUrl: '', active: true };
+const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', costPrice: '', imageUrl: '', active: true };
 const EMPTY_VARIANT = { size: '', color: '', sku: '', stock: '', price: '' };
 const KEEP_LABEL = { hide: 'Giữ lại', discard: 'Tiếp tục chỉnh sửa' };
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -29,6 +29,7 @@ const productBody = (p) => ({
   description: p.description || '',
   categoryId: p.categoryId ?? p.category?.id ?? '', // '' clears the category (the API treats blank as none)
   basePrice: Number(p.basePrice),
+  costPrice: costPriceValue(p.costPrice), // empty -> null (cost unknown); admin only
   imageUrl: p.imageUrl || '',
   active: p.active,
 });
@@ -40,6 +41,8 @@ function validateProduct(p) {
   else if (!SLUG_RE.test(p.slug)) errs.slug = 'Slug chỉ gồm chữ thường, số và dấu gạch ngang';
   const price = countError(p.basePrice, 'Giá gốc');
   if (price) errs.basePrice = price;
+  const cost = costPriceError(p.costPrice);
+  if (cost) errs.costPrice = cost;
   return errs;
 }
 
@@ -283,15 +286,27 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Field>
               </div>
-              <Field
-                label="Giá gốc (₫)"
-                type="number"
-                inputMode="numeric"
-                min="0"
-                value={editing.basePrice}
-                error={errs.basePrice}
-                onChange={setField('basePrice')}
-              />
+              <div className="ad-grid2">
+                <Field
+                  label="Giá gốc (₫)"
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  value={editing.basePrice}
+                  error={errs.basePrice}
+                  onChange={setField('basePrice')}
+                />
+                <Field
+                  label="Giá vốn (tuỳ chọn)"
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  value={editing.costPrice ?? ''}
+                  error={errs.costPrice}
+                  hint="Dùng để tính lợi nhuận, khách hàng không nhìn thấy"
+                  onChange={setField('costPrice')}
+                />
+              </div>
               <div className="ad-imgrow">
                 <Field label="Link ảnh" optional value={editing.imageUrl || ''} onChange={setField('imageUrl')} placeholder="https://" autoComplete="off" />
                 <Thumb key={editing.imageUrl || 'none'} src={editing.imageUrl} name={editing.name} size={92} />

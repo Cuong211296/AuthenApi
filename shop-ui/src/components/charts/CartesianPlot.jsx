@@ -148,7 +148,7 @@ export default function CartesianPlot({
       </svg>
       {ready && activeRows && (
         <ChartTooltip
-          x={xs[active] + (band ? layout.bandwidth / 2 : 0)}
+          x={xs[active]}
           y={top}
           containerWidth={width}
           title={formatXLong(data[active][xKey])}
