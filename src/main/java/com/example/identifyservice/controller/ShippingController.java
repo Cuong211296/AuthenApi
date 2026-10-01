@@ -4,9 +4,15 @@ import com.example.identifyservice.dto.request.ApiResponse;
 import com.example.identifyservice.dto.request.ShippingFeeUpdateRequest;
 import com.example.identifyservice.dto.request.ShippingQuoteRequest;
 import com.example.identifyservice.dto.request.ShippingRateRequest;
+import com.example.identifyservice.dto.response.CodeNameResponse;
+import com.example.identifyservice.dto.response.IdNameResponse;
 import com.example.identifyservice.dto.response.ShippingFeeResponse;
 import com.example.identifyservice.dto.response.ShippingQuoteResponse;
 import com.example.identifyservice.dto.response.ShippingRateResponse;
+import com.example.identifyservice.exception.AppException;
+import com.example.identifyservice.exception.ErrorCode;
+import com.example.identifyservice.ghn.GhnMasterDataService;
+import com.example.identifyservice.ghn.GhnUnavailableException;
 import com.example.identifyservice.service.ShippingQuoteService;
 import com.example.identifyservice.service.ShippingService;
 import jakarta.validation.Valid;
@@ -16,6 +22,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,12 +30,46 @@ import java.util.List;
 public class ShippingController {
     ShippingService shippingService;
     ShippingQuoteService shippingQuoteService;
+    GhnMasterDataService ghnMasterDataService;
 
     /** Authenticated: quotes the shipping fee of the signed-in user's current cart. */
     @PostMapping("/shipping/quote")
     ApiResponse<ShippingQuoteResponse> quote(@RequestBody @Valid ShippingQuoteRequest request) {
         return ApiResponse.ok(ShippingQuoteResponse.from(
-                shippingQuoteService.quoteCurrentCart(request.province(), request.ward(), request.address())));
+                shippingQuoteService.quoteCurrentCart(request.toAddress())));
+    }
+
+    /** Public: which carrier serves quotes and whether the checkout uses GHN id selects or text address fields. */
+    @GetMapping("/shipping/config")
+    ApiResponse<ShippingQuoteService.ProviderConfig> config() {
+        return ApiResponse.ok(shippingQuoteService.providerConfig());
+    }
+
+    @GetMapping("/shipping/ghn/provinces")
+    ApiResponse<List<IdNameResponse>> ghnProvinces() {
+        return ApiResponse.ok(masterData(() -> ghnMasterDataService.provinces().stream()
+                .map(p -> new IdNameResponse(p.id(), p.name())).toList()));
+    }
+
+    @GetMapping("/shipping/ghn/districts")
+    ApiResponse<List<IdNameResponse>> ghnDistricts(@RequestParam int provinceId) {
+        return ApiResponse.ok(masterData(() -> ghnMasterDataService.districts(provinceId).stream()
+                .map(d -> new IdNameResponse(d.id(), d.name())).toList()));
+    }
+
+    @GetMapping("/shipping/ghn/wards")
+    ApiResponse<List<CodeNameResponse>> ghnWards(@RequestParam int districtId) {
+        return ApiResponse.ok(masterData(() -> ghnMasterDataService.wards(districtId).stream()
+                .map(w -> new CodeNameResponse(w.code(), w.name())).toList()));
+    }
+
+    /** GHN disabled or down: 502 SHIPPING_PROVIDER_UNAVAILABLE, the UI then falls back to the text address. */
+    private static <T> T masterData(Supplier<T> call) {
+        try {
+            return call.get();
+        } catch (GhnUnavailableException e) {
+            throw new AppException(ErrorCode.SHIPPING_PROVIDER_UNAVAILABLE);
+        }
     }
 
     @GetMapping("/shipping/fee")

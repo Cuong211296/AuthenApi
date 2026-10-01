@@ -2,9 +2,19 @@ package com.example.identifyservice.service;
 
 import com.example.identifyservice.dto.response.ShippingQuote;
 import com.example.identifyservice.entity.Cart;
+import com.example.identifyservice.entity.ShippingRate;
 import com.example.identifyservice.enums.ShippingSource;
 import com.example.identifyservice.exception.AppException;
 import com.example.identifyservice.exception.ErrorCode;
+import com.example.identifyservice.ghn.GhnAddress;
+import com.example.identifyservice.ghn.GhnFeeRequest;
+import com.example.identifyservice.ghn.GhnFeeResult;
+import com.example.identifyservice.ghn.GhnGateway;
+import com.example.identifyservice.ghn.GhnMasterDataService;
+import com.example.identifyservice.ghn.GhnMasterDataService.Resolution;
+import com.example.identifyservice.ghn.GhnProperties;
+import com.example.identifyservice.ghn.GhnRejectedException;
+import com.example.identifyservice.ghn.GhnUnavailableException;
 import com.example.identifyservice.ghtk.GhtkFeeRequest;
 import com.example.identifyservice.ghtk.GhtkFeeResult;
 import com.example.identifyservice.ghtk.GhtkGateway;
@@ -20,13 +30,16 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * Computes the shipping fee of a cart: GHTK when configured and it can deliver, otherwise the fixed province table
- * (flagged as an estimate). Weight and value are always computed here from database data, never from the client.
+ * Computes the shipping fee of a cart. Provider chain: GHN (when configured and the address carries GHN ids), then
+ * GHTK (when configured), then the fixed province table (flagged as an estimate). Weight and value are always
+ * computed here from database data, never from the client, and GHN ids are validated against GHN master data.
  * <p>
- * A global circuit breaker skips GHTK for {@link #BREAKER_OPEN} after any failure (timeout, unavailable, malformed,
- * HTTP error); a clean refusal (success=false / delivery=false) is not a failure.
+ * Each carrier has its own circuit breaker ({@link CarrierBreaker}) that skips it for 60 s after any failure
+ * (timeout, unavailable, malformed, HTTP error); a clean refusal (GHTK success=false / delivery=false, GHN HTTP 400)
+ * is not a failure. Quotes are cached for 10 minutes per carrier.
  */
 @Service
 @Slf4j
@@ -34,116 +47,219 @@ public class ShippingQuoteService {
     static final String MSG_UNSUPPORTED = "GHTK không hỗ trợ giao tới địa chỉ này";
     static final String MSG_UNSUPPORTED_FALLBACK = MSG_UNSUPPORTED + ", dùng phí tạm tính";
     static final String MSG_DOWN_FALLBACK = "Không kết nối được GHTK, dùng phí tạm tính";
+    static final String MSG_GHN_DOWN_FALLBACK = "Không kết nối được GHN, dùng phí tạm tính";
     static final Duration CACHE_TTL = Duration.ofMinutes(10);
-    static final Duration BREAKER_OPEN = Duration.ofSeconds(60);
+    static final Duration BREAKER_OPEN = CarrierBreaker.OPEN_FOR;
     static final int CACHE_MAX_ENTRIES = 500;
     static final long VALUE_BUCKET = 100_000;
+    static final long MAX_INSURANCE_VALUE = 5_000_000;
+
+    /** Which carrier serves quotes and how the checkout address is entered (for {@code GET /shipping/config}). */
+    public record ProviderConfig(String provider, String addressMode) {
+    }
 
     private record CacheEntry(ShippingQuote quote, Instant expiresAt) {
     }
 
     private final GhtkGateway ghtk;
     private final GhtkProperties props;
+    private final GhnGateway ghn;
+    private final GhnProperties ghnProps;
+    private final GhnMasterDataService masterData;
     private final ShippingService shippingService;
     private final Clock clock;
     private final CartMeasurer cartMeasurer;
     /** Insertion-ordered; every entry has the same TTL so the eldest is always the first to expire. */
     private final Map<String, CacheEntry> cache = new LinkedHashMap<>();
-    /** Global circuit breaker: GHTK is skipped until this instant after a failure (null = closed). */
-    private Instant ghtkOpenUntil;
-    /** True while the single half-open probe call is in flight. */
-    private boolean probing;
+    private final CarrierBreaker ghtkBreaker;
+    private final CarrierBreaker ghnBreaker;
 
-    public ShippingQuoteService(GhtkGateway ghtk, GhtkProperties props, ShippingService shippingService, Clock clock,
+    public ShippingQuoteService(GhtkGateway ghtk, GhtkProperties props, GhnGateway ghn, GhnProperties ghnProps,
+                                GhnMasterDataService masterData, ShippingService shippingService, Clock clock,
                                 CartMeasurer cartMeasurer) {
         this.ghtk = ghtk;
         this.props = props;
+        this.ghn = ghn;
+        this.ghnProps = ghnProps;
+        this.masterData = masterData;
         this.shippingService = shippingService;
         this.clock = clock;
         this.cartMeasurer = cartMeasurer;
+        this.ghtkBreaker = new CarrierBreaker(clock);
+        this.ghnBreaker = new CarrierBreaker(clock);
+    }
+
+    /** Provider and address mode for the storefront: GHN id selects only while GHN master data is reachable. */
+    public ProviderConfig providerConfig() {
+        if (masterData.isAvailable()) return new ProviderConfig("GHN", "GHN_IDS");
+        return new ProviderConfig(props.isEnabled() ? "GHTK" : "TABLE", "TEXT");
     }
 
     /**
      * Quote for the signed-in user's current cart. Deliberately not transactional: the cart is measured in a short
-     * transaction and the GHTK call happens with no DB connection held.
+     * transaction and the carrier calls happen with no DB connection held.
      */
-    public ShippingQuote quoteCurrentCart(String province, String ward, String address) {
-        return quote(cartMeasurer.measureCurrentCart(), province, ward, address);
+    public ShippingQuote quoteCurrentCart(QuoteAddress address) {
+        requireAddressShape(address);
+        return quote(cartMeasurer.measureCurrentCart(), address);
     }
 
     public ShippingQuote quote(Cart cart, String province, String ward, String address) {
-        return quote(CartMeasure.of(cart), province, ward, address);
+        return quote(CartMeasure.of(cart), QuoteAddress.text(province, ward, address));
     }
 
-    public ShippingQuote quote(CartMeasure measure, String province, String ward, String address) {
+    public ShippingQuote quote(Cart cart, QuoteAddress address) {
+        return quote(CartMeasure.of(cart), address);
+    }
+
+    public ShippingQuote quote(CartMeasure measure, QuoteAddress address) {
+        return quoteResolved(measure, resolveAddress(address));
+    }
+
+    /**
+     * Validates the address and, in GHN id mode, replaces the client's names with the ones from GHN master data
+     * (never trusting client names). Unknown or inconsistent ids are INVALID_INPUT. When GHN master data is down the
+     * text names are used if present (ids dropped), otherwise SHIPPING_PROVIDER_UNAVAILABLE. Never throws through a
+     * transactional proxy, so it is safe to call inside the checkout transaction.
+     */
+    public QuoteAddress resolveAddress(QuoteAddress address) {
+        requireAddressShape(address);
+        if (!address.hasGhnIds()) return address.withoutIds();
+        if (!ghnProps.isEnabled()) {
+            if (!address.hasTextNames()) throw new AppException(ErrorCode.INVALID_INPUT);
+            return address.withoutIds();
+        }
+        Resolution r = masterData.resolve(address.provinceId(), address.districtId(), address.wardCode());
+        switch (r.status()) {
+            case INVALID:
+                throw new AppException(ErrorCode.INVALID_INPUT);
+            case UNAVAILABLE:
+                if (!address.hasTextNames()) throw new AppException(ErrorCode.SHIPPING_PROVIDER_UNAVAILABLE);
+                return address.withoutIds();
+            default:
+                GhnAddress names = r.address();
+                return new QuoteAddress(names.provinceName(), names.districtName(), names.wardName(),
+                        address.address(), address.provinceId(), address.districtId(), address.wardCode().trim());
+        }
+    }
+
+    /** Either GHN ids (all three) or text province and ward must be present. */
+    public static void requireAddressShape(QuoteAddress a) {
+        if (!a.hasGhnIds() && !a.hasTextNames()) throw new AppException(ErrorCode.INVALID_INPUT);
+    }
+
+    /** Quotes an address already returned by {@link #resolveAddress}. */
+    public ShippingQuote quoteResolved(CartMeasure measure, QuoteAddress address) {
         int weightGrams = measure.weightGrams();
-        String safeAddress = address == null ? "" : address.trim();
+        String ghnFailure = null;
+        if (ghnProps.isEnabled() && address.hasGhnIds()) {
+            ShippingQuote q = ghnQuote(measure, address);
+            if (q != null) return q;
+            ghnFailure = MSG_GHN_DOWN_FALLBACK;
+        }
 
-        if (!props.isEnabled()) return tableQuote(province, weightGrams, null);
+        if (!props.isEnabled() || !address.hasTextNames()) return tableQuote(address, weightGrams, ghnFailure);
 
-        String key = cacheKey(province, ward, safeAddress, weightGrams, measure.value());
+        String province = address.provinceName().trim();
+        String ward = address.wardName().trim();
+        String safeAddress = address.address() == null ? "" : address.address().trim();
+        String key = ghtkCacheKey(province, ward, safeAddress, weightGrams, measure.value());
         ShippingQuote cached = cacheGet(key);
         if (cached != null) return cached;
 
-        if (!allowGhtkCall()) return tableQuote(province, weightGrams, MSG_DOWN_FALLBACK);
+        CarrierBreaker.Permit permit = ghtkBreaker.acquire();
+        if (permit == CarrierBreaker.Permit.DENIED) return tableQuote(address, weightGrams, MSG_DOWN_FALLBACK);
 
         GhtkFeeResult result;
         try {
-            result = ghtk.calculateFee(
-                    new GhtkFeeRequest(province.trim(), ward.trim(), safeAddress, weightGrams, measure.value()));
+            result = ghtk.calculateFee(new GhtkFeeRequest(province, ward, safeAddress, weightGrams, measure.value()));
+            ghtkBreaker.success(); // a clean answer (even a refusal) means GHTK is reachable
         } catch (RuntimeException e) {
-            if (!(e instanceof GhtkUnavailableException)) log.warn("Unexpected GHTK quote failure: {}", e.toString());
-            recordFailure();
-            return tableQuote(province, weightGrams, MSG_DOWN_FALLBACK);
+            if (!(e instanceof GhtkUnavailableException))
+                log.warn("Unexpected GHTK quote failure: {}", e.getClass().getSimpleName());
+            ghtkBreaker.failure();
+            return tableQuote(address, weightGrams, MSG_DOWN_FALLBACK);
+        } finally {
+            ghtkBreaker.release(permit);
         }
-        recordSuccess(); // a clean answer (even a refusal) means GHTK is reachable
         if (result.success() && result.deliverable()) {
             ShippingQuote quote = new ShippingQuote(result.fee(), ShippingSource.GHTK, false, weightGrams, true, null);
             cachePut(key, quote);
             return quote;
         }
-        return unsupportedQuote(province, weightGrams);
+        return unsupportedQuote(address, weightGrams);
+    }
+
+    /** GHN fee, or null when GHN cannot answer (down, breaker open, refused): the caller then falls back. */
+    private ShippingQuote ghnQuote(CartMeasure measure, QuoteAddress address) {
+        int weightGrams = measure.weightGrams();
+        String key = ghnCacheKey(address.districtId(), address.wardCode().trim(), weightGrams, measure.value());
+        ShippingQuote cached = cacheGet(key);
+        if (cached != null) return cached;
+
+        CarrierBreaker.Permit permit = ghnBreaker.acquire();
+        if (permit == CarrierBreaker.Permit.DENIED) return null;
+        try {
+            GhnFeeResult result = ghn.calculateFee(new GhnFeeRequest(address.districtId(),
+                    address.wardCode().trim(), weightGrams, Math.min(measure.value(), MAX_INSURANCE_VALUE)));
+            if (result == null || result.total() < 0) {
+                ghnBreaker.failure();
+                return null;
+            }
+            ghnBreaker.success();
+            ShippingQuote quote = new ShippingQuote(result.total(), ShippingSource.GHN, false, weightGrams, true, null);
+            cachePut(key, quote);
+            return quote;
+        } catch (GhnRejectedException e) {
+            ghnBreaker.success(); // GHN answered, it just refuses this parcel or route
+            return null;
+        } catch (RuntimeException e) {
+            if (!(e instanceof GhnUnavailableException))
+                log.warn("Unexpected GHN quote failure: {}", e.getClass().getSimpleName());
+            ghnBreaker.failure();
+            return null;
+        } finally {
+            ghnBreaker.release(permit);
+        }
     }
 
     /** GHTK refused the address: use the table if it knows the province, otherwise report not deliverable. */
-    private ShippingQuote unsupportedQuote(String province, int weightGrams) {
-        return shippingService.findRate(province)
+    private ShippingQuote unsupportedQuote(QuoteAddress address, int weightGrams) {
+        return findRate(address)
                 .map(rate -> new ShippingQuote(rate.getFee(), ShippingSource.TABLE, true, weightGrams, true,
                         MSG_UNSUPPORTED_FALLBACK))
                 .orElseGet(() -> new ShippingQuote(0, ShippingSource.GHTK, false, weightGrams, false, MSG_UNSUPPORTED));
     }
 
     /**
-     * Throws INVALID_PROVINCE itself. It uses the non-throwing lookup on purpose: an AppException crossing a
-     * transactional proxy would mark the caller's outer transaction rollback-only.
+     * The fixed-table fallback. It uses the non-throwing lookup on purpose: an AppException crossing a
+     * transactional proxy would mark the caller's outer transaction rollback-only. A province missing from the table
+     * is INVALID_PROVINCE for a text address and SHIPPING_NOT_AVAILABLE for a GHN-validated one.
      */
-    private ShippingQuote tableQuote(String province, int weightGrams, String message) {
-        long fee = shippingService.findRate(province)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PROVINCE)).getFee();
+    private ShippingQuote tableQuote(QuoteAddress address, int weightGrams, String message) {
+        long fee = findRate(address)
+                .orElseThrow(() -> new AppException(address.hasGhnIds()
+                        ? ErrorCode.SHIPPING_NOT_AVAILABLE : ErrorCode.INVALID_PROVINCE)).getFee();
         return new ShippingQuote(fee, ShippingSource.TABLE, true, weightGrams, true, message);
     }
 
-    private synchronized boolean allowGhtkCall() {
-        if (ghtkOpenUntil == null) return true;
-        if (clock.instant().isBefore(ghtkOpenUntil)) return false;
-        if (probing) return false;
-        probing = true;
-        return true;
+    private Optional<ShippingRate> findRate(QuoteAddress address) {
+        return address.hasGhnIds()
+                ? shippingService.findRateByCarrierName(address.provinceName())
+                : shippingService.findRate(address.provinceName());
     }
 
-    private synchronized void recordFailure() {
-        ghtkOpenUntil = clock.instant().plus(BREAKER_OPEN);
-        probing = false;
+    private static String ghtkCacheKey(String province, String ward, String address, int weight, long value) {
+        return "ghtk|" + normalize(province) + "|" + normalize(ward) + "|" + normalize(address) + "|" + weight + "|"
+                + bucket(value);
     }
 
-    private synchronized void recordSuccess() {
-        ghtkOpenUntil = null;
-        probing = false;
+    private static String ghnCacheKey(int districtId, String wardCode, int weight, long value) {
+        return "ghn|" + districtId + "|" + normalize(wardCode) + "|" + weight + "|" + bucket(value);
     }
 
-    private static String cacheKey(String province, String ward, String address, int weight, long value) {
-        return normalize(province) + "|" + normalize(ward) + "|" + normalize(address) + "|" + weight + "|"
-                + (value / VALUE_BUCKET * VALUE_BUCKET);
+    private static long bucket(long value) {
+        return value / VALUE_BUCKET * VALUE_BUCKET;
     }
 
     private static String normalize(String s) {
@@ -175,10 +291,13 @@ public class ShippingQuoteService {
         cache.put(key, new CacheEntry(quote, now.plus(CACHE_TTL)));
     }
 
-    /** Clears the quote cache and closes the circuit breaker (used by tests). */
-    public synchronized void clearCache() {
-        cache.clear();
-        ghtkOpenUntil = null;
-        probing = false;
+    /** Clears the quote cache and GHN master data, and closes both circuit breakers (used by tests). */
+    public void clearCache() {
+        synchronized (this) {
+            cache.clear();
+        }
+        ghtkBreaker.reset();
+        ghnBreaker.reset();
+        masterData.clear();
     }
 }

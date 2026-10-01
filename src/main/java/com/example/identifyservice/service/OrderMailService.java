@@ -61,8 +61,14 @@ public class OrderMailService {
                 + "<p>Tạm tính: " + vnd(o.getSubtotal()) + "<br>Phí vận chuyển: " + vnd(o.getShippingFee())
                 + "<br><b>Tổng cộng: " + vnd(o.getTotal()) + "</b></p>"
                 + "<p>" + payment + "</p>"
-                + "<p>Giao đến: " + h(o.getAddress()) + ", " + (o.getWard() == null || o.getWard().isBlank() ? "" : h(o.getWard()) + ", ")
-                + h(o.getProvince()) + " - SĐT " + h(o.getPhone()) + "</p>";
+                + "<p>Giao đến: " + deliveryLine(o) + " - SĐT " + h(o.getPhone()) + "</p>";
+    }
+
+    /** address, ward, district, province, skipping missing parts (old orders have no ward or district). */
+    private static String deliveryLine(Order o) {
+        return java.util.stream.Stream.of(o.getAddress(), o.getWard(), o.getDistrict(), o.getProvince())
+                .filter(s -> s != null && !s.isBlank()).map(OrderMailService::h)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private static String h(String s) {

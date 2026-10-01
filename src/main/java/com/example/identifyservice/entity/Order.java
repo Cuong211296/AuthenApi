@@ -68,6 +68,10 @@ public class Order {
     @Column(length = 100)
     String ward;
 
+    /** Quận/Huyện; null on orders created before GHN address selection or in text mode without it. */
+    @Column(length = 100)
+    String district;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 10)
     ShippingSource shippingSource;

@@ -63,3 +63,13 @@ ghtk:
   pick-district: ${GHTK_PICK_DISTRICT:}
   pick-address: ${GHTK_PICK_ADDRESS:}
   transport: ${GHTK_TRANSPORT:road}
+
+ghn:
+  token: ${TOKEN_API_GHN:}
+  shop-id: ${GHN_SHOP_ID:}
+  base-url: ${GHN_BASE_URL:https://dev-online-gateway.ghn.vn}
+  from-district-id: ${GHN_FROM_DISTRICT_ID:}
+  service-type-id: ${GHN_SERVICE_TYPE_ID:2}
+  default-length: ${GHN_DEFAULT_LENGTH:25}
+  default-width: ${GHN_DEFAULT_WIDTH:20}
+  default-height: ${GHN_DEFAULT_HEIGHT:10}

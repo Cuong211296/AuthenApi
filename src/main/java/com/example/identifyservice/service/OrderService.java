@@ -52,14 +52,27 @@ public class OrderService {
 
     @Transactional
     public OrderResponse checkout(CheckoutRequest request) {
+        // cross-field rule first (GHN ids OR province + ward), before touching the user, cart or GHN
+        ShippingQuoteService.requireAddressShape(request.toAddress());
         User user = currentUserService.requireUser();
         Cart cart = cartRepository.findByUser(user).orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY));
         if (cart.getItems().isEmpty()) throw new AppException(ErrorCode.CART_EMPTY);
-        // Shipping is computed server-side only (GHTK, else the table) and before any stock is touched.
-        ShippingQuote quote = shippingQuoteService.quote(cart, request.province(), request.ward(), request.address());
+        // The address is validated and, in GHN id mode, its names are resolved from GHN master data (never the
+        // client's names). Shipping is then computed server-side only (GHN, GHTK, else the table) and before any
+        // stock is touched. Neither call throws through a transactional proxy.
+        QuoteAddress resolved = shippingQuoteService.resolveAddress(request.toAddress());
+        ShippingQuote quote = shippingQuoteService.quoteResolved(CartMeasure.of(cart), resolved);
         if (!quote.deliverable()) throw new AppException(ErrorCode.SHIPPING_NOT_AVAILABLE);
-        String province = shippingService.findRate(request.province()).map(ShippingRate::getProvince)
-                .orElse(request.province().trim());
+        String province;
+        String ward = resolved.wardName().trim();
+        String district = resolved.districtName() == null || resolved.districtName().isBlank()
+                ? null : resolved.districtName().trim();
+        if (resolved.hasGhnIds()) {
+            province = resolved.provinceName();
+        } else {
+            province = shippingService.findRate(resolved.provinceName()).map(ShippingRate::getProvince)
+                    .orElse(resolved.provinceName().trim());
+        }
 
         Instant now = Instant.now();
         boolean momo = request.paymentMethod() == PaymentMethod.MOMO;
@@ -74,7 +87,8 @@ public class OrderService {
                 .email(request.email().trim())
                 .address(request.address().trim())
                 .province(province)
-                .ward(request.ward().trim())
+                .ward(ward)
+                .district(district)
                 .shippingSource(quote.source())
                 .weightGrams(quote.weightGrams())
                 .note(request.note() == null || request.note().isBlank() ? null : request.note().trim())

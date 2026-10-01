@@ -11,6 +11,9 @@ import com.example.identifyservice.exception.ErrorCode;
 import com.example.identifyservice.ghtk.GhtkFeeResult;
 import com.example.identifyservice.ghtk.GhtkProperties;
 import com.example.identifyservice.ghtk.GhtkUnavailableException;
+import com.example.identifyservice.ghn.GhnMasterDataService;
+import com.example.identifyservice.ghn.GhnProperties;
+import com.example.identifyservice.testsupport.FakeGhnGateway;
 import com.example.identifyservice.testsupport.FakeGhtkGateway;
 import com.example.identifyservice.testsupport.MutableClock;
 import com.example.identifyservice.testsupport.TestDataFactory;
@@ -38,6 +41,7 @@ class ShippingQuoteServiceTest {
     static final String TABLE_MESSAGE_UNSUPPORTED = "GHTK không hỗ trợ giao tới địa chỉ này, dùng phí tạm tính";
 
     @Autowired FakeGhtkGateway ghtk;
+    @Autowired FakeGhnGateway ghn;
     @Autowired ShippingService shipping;
     @Autowired CartMeasurer measurer;
     @Autowired TestDataFactory data;
@@ -50,6 +54,7 @@ class ShippingQuoteServiceTest {
     @org.junit.jupiter.api.AfterEach
     void resetGhtk() {
         ghtk.reset();
+        ghn.reset();
     }
 
     @BeforeEach
@@ -65,7 +70,9 @@ class ShippingQuoteServiceTest {
     }
 
     private ShippingQuoteService serviceWith(GhtkProperties props) {
-        return new ShippingQuoteService(ghtk, props, shipping, clock, measurer);
+        GhnProperties ghnProps = new GhnProperties("GT", "1", "https://ghn.test", null, 2, 25, 20, 10);
+        return new ShippingQuoteService(ghtk, props, ghn, ghnProps, new GhnMasterDataService(ghn, ghnProps, clock),
+                shipping, clock, measurer);
     }
 
     private Cart cart(Object... variantAndQty) {

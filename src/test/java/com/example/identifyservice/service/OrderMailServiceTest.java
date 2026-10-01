@@ -84,4 +84,33 @@ class OrderMailServiceTest {
         String old = sender.sent.get(0).getContent().toString();
         assertThat(old).contains("1 Test St, H").doesNotContain("null").doesNotContain("Phuong");
     }
+    @Test
+    void deliveryLineShowsAddressWardDistrictProvinceInOrderAndEscapesAndSkipsMissingParts() throws Exception {
+        order.setWard("Ben Nghe");
+        order.setDistrict("Quan <i>1</i>");
+        order.setProvince("Ho Chi Minh");
+        orders.save(order);
+        mailService.sendOrderConfirmation(order.getId());
+        String body = sender.sent.get(0).getContent().toString();
+        assertThat(body).contains("1 Test St, Ben Nghe, Quan &lt;i&gt;1&lt;/i&gt;, Ho Chi Minh - S")
+                .doesNotContain("<i>");
+
+        sender.reset();
+        order.setWard(null);
+        order.setDistrict(null);
+        orders.save(order);
+        mailService.sendOrderConfirmation(order.getId());
+        String old = sender.sent.get(0).getContent().toString();
+        assertThat(old).contains("1 Test St, Ho Chi Minh - S").doesNotContain("null");
+    }
+
+    @Test
+    void orderResponseIsNullSafeForOrdersWithoutWardOrDistrict() {
+        order.setWard(null);
+        order.setDistrict(null);
+        var response = com.example.identifyservice.dto.response.OrderResponse.from(order);
+        assertThat(response.district()).isNull();
+        assertThat(response.ward()).isNull();
+        assertThat(response.province()).isEqualTo("Hà Nội");
+    }
 }

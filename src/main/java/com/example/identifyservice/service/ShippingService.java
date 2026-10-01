@@ -37,6 +37,24 @@ public class ShippingService {
         return repository.findByProvinceIgnoreCase(province.trim());
     }
 
+    /**
+     * Like {@link #findRate} but tolerant of how a carrier spells a province ("Hồ Chí Minh", "Thành phố Hồ Chí
+     * Minh", "Tỉnh Nghệ An") against the table's names ("TP Hồ Chí Minh", "Nghệ An"). Non-throwing.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ShippingRate> findRateByCarrierName(String name) {
+        if (name == null || name.isBlank()) return Optional.empty();
+        String trimmed = name.trim();
+        Optional<ShippingRate> exact = repository.findByProvinceIgnoreCase(trimmed);
+        if (exact.isPresent()) return exact;
+        String bare = trimmed.replaceFirst("(?iu)^(thành phố|tỉnh|tp\\.?)\\s+", "");
+        for (String candidate : new String[]{bare, "TP " + bare, "Thành phố " + bare, "Tỉnh " + bare}) {
+            Optional<ShippingRate> hit = repository.findByProvinceIgnoreCase(candidate);
+            if (hit.isPresent()) return hit;
+        }
+        return Optional.empty();
+    }
+
     @Transactional(readOnly = true)
     public ShippingFeeResponse fee(String province) {
         ShippingRate rate = requireRate(province);

@@ -29,7 +29,8 @@ import java.util.Arrays;
     @EnableWebSecurity
 @EnableMethodSecurity
     public class SecurityConfig {
-    private final String[] PUBLIC_GET_ENDPOINTS = {"/products/**", "/categories/**", "/shipping/fee", "/shipping/provinces"};
+    private final String[] PUBLIC_GET_ENDPOINTS = {"/products/**", "/categories/**", "/shipping/fee", "/shipping/provinces",
+            "/shipping/config", "/shipping/ghn/**"};
     private final String[] PUBLIC_POST_ENDPOINTS = {"/users",
             "/auth/token",
             "/auth/introspect",

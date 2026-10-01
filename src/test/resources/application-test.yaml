@@ -43,3 +43,12 @@ ghtk:
   pick-province: Hà Nội
   pick-ward: Phường Test
   transport: road
+
+ghn:
+  token: TEST-GHN-TOKEN
+  shop-id: "123456"
+  base-url: https://ghn.test
+  service-type-id: 2
+  default-length: 25
+  default-width: 20
+  default-height: 10
