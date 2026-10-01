@@ -84,7 +84,7 @@ public class OrderService {
             subtotal += unitPrice * cartItem.getQuantity();
             order.getItems().add(OrderItem.builder().order(order).variantId(variant.getId())
                     .productName(product.getName()).size(variant.getSize()).color(variant.getColor())
-                    .unitPrice(unitPrice).quantity(cartItem.getQuantity()).build());
+                    .unitPrice(unitPrice).unitCost(product.getCostPrice()).quantity(cartItem.getQuantity()).build());
         }
         order.setSubtotal(subtotal);
         order.setTotal(subtotal + rate.getFee());

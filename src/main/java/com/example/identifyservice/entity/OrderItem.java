@@ -37,4 +37,7 @@ public class OrderItem {
     long unitPrice;
 
     int quantity;
+
+    /** Snapshot of the product cost price at checkout; null when unknown. Never exposed to customers. */
+    Long unitCost;
 }

@@ -38,6 +38,10 @@ public class Product {
     @Column(nullable = false)
     long basePrice;
 
+    /** Optional unit cost, admin-only; never exposed on public or customer responses. */
+    @Column
+    Long costPrice;
+
     @Column(length = 500)
     String imageUrl;
 

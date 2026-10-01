@@ -117,6 +117,7 @@ public class AdminCatalogService {
         product.setSlug(r.slug());
         product.setDescription(r.description());
         product.setBasePrice(r.basePrice());
+        product.setCostPrice(r.costPrice());
         product.setImageUrl(r.imageUrl());
         if (product.getId() == null) product.setActive(r.active() == null || r.active());
         else if (r.active() != null) product.setActive(r.active());

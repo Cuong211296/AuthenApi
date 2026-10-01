@@ -43,4 +43,14 @@ class ValidationWiringTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1011));
     }
+
+    @Test
+    void productWithNegativeCostPriceIsRejected() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/admin/products")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"X\",\"slug\":\"x\",\"basePrice\":1000,\"costPrice\":-1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+    }
 }

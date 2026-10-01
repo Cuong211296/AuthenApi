@@ -226,4 +226,27 @@ class OrderServiceTest {
         assertThatThrownBy(() -> orders.adminList(null, 0, 10))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
+
+    @Test
+    void checkoutSnapshotsProductCostIntoOrderItem() {
+        tee.setCostPrice(80_000L);
+        cart.addItem(m.getId(), 1);
+        OrderResponse order = orders.checkout(request(PaymentMethod.COD, "Hà Nội"));
+
+        tee.setCostPrice(120_000L); // later cost change must not alter the snapshot
+        em.flush();
+        em.clear();
+        var stored = orderRepository.findByCode(order.code()).orElseThrow();
+        assertThat(stored.getItems()).hasSize(1);
+        assertThat(stored.getItems().get(0).getUnitCost()).isEqualTo(80_000L);
+    }
+
+    @Test
+    void checkoutLeavesUnitCostNullWhenProductHasNoCost() {
+        cart.addItem(m.getId(), 1);
+        OrderResponse order = orders.checkout(request(PaymentMethod.COD, "Hà Nội"));
+        em.flush();
+        em.clear();
+        assertThat(orderRepository.findByCode(order.code()).orElseThrow().getItems().get(0).getUnitCost()).isNull();
+    }
 }

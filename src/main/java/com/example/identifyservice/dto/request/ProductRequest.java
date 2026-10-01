@@ -11,6 +11,7 @@ public record ProductRequest(
         @Size(max = 4000, message = "INVALID_INPUT") String description,
         String categoryId,
         @Min(value = 0, message = "INVALID_INPUT") long basePrice,
+        @Min(value = 0, message = "INVALID_INPUT") Long costPrice,
         @Size(max = 500, message = "INVALID_INPUT") String imageUrl,
         Boolean active) {
 }
