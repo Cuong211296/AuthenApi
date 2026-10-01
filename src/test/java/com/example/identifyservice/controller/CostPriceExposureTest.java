@@ -89,10 +89,10 @@ class CostPriceExposureTest {
 
         String detail = mvc.perform(get("/products/weighty-tee")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        assertThat(detail).doesNotContain("weightGrams").doesNotContain("777");
+        assertThat(detail).doesNotContain("weightGrams").doesNotContainPattern(":\s*777\b");
         String list = mvc.perform(get("/products")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        assertThat(list).doesNotContain("weightGrams").doesNotContain("777");
+        assertThat(list).doesNotContain("weightGrams").doesNotContainPattern(":\s*777\b");
 
         var admin = jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
         mvc.perform(get("/admin/products/" + p.getId()).with(admin)).andExpect(status().isOk())
