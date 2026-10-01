@@ -211,4 +211,41 @@ class GhnHttpGatewayTest {
         for (; t != null; t = t.getCause()) sb.append(t).append('|');
         return sb.toString();
     }
+
+    @Test
+    void masterDataFourXxAndBadCodesAreRefusalsButServerErrorsAndRateLimitsAreOutages() {
+        String url = "https://ghn.test/shiip/public-api/master-data/ward";
+        server.expect(requestTo(url)).andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                .withStatus(org.springframework.http.HttpStatus.NOT_FOUND));
+        assertThatThrownBy(() -> gateway.wards(1)).isInstanceOf(GhnRejectedException.class);
+
+        gateway = build(PROPS);
+        server.expect(requestTo(url)).andRespond(withBadRequest());
+        assertThatThrownBy(() -> gateway.wards(1)).isInstanceOf(GhnRejectedException.class);
+
+        gateway = build(PROPS);
+        server.expect(requestTo(url)).andRespond(withSuccess("{\"code\":400,\"message\":\"bad id\"}", MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> gateway.wards(1)).isInstanceOf(GhnRejectedException.class);
+
+        gateway = build(PROPS);
+        server.expect(requestTo(url)).andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                .withStatus(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS));
+        assertThatThrownBy(() -> gateway.wards(1)).isInstanceOf(GhnUnavailableException.class)
+                .isNotInstanceOf(GhnRejectedException.class);
+
+        gateway = build(PROPS);
+        server.expect(requestTo(url)).andRespond(withServerError());
+        assertThatThrownBy(() -> gateway.wards(1)).isInstanceOf(GhnUnavailableException.class)
+                .isNotInstanceOf(GhnRejectedException.class);
+    }
+
+    @Test
+    void rejectionWarningsAreThrottledToOncePerFiveMinutes() {
+        var throttle = new LogThrottle(java.time.Duration.ofMinutes(5));
+        assertThat(throttle.allow(0)).isTrue();
+        assertThat(throttle.allow(1_000)).isFalse();
+        assertThat(throttle.allow(299_000)).isFalse();
+        assertThat(throttle.allow(300_000)).isTrue();
+        assertThat(throttle.allow(301_000)).isFalse();
+    }
 }

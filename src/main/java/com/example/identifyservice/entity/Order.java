@@ -8,6 +8,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -72,7 +74,9 @@ public class Order {
     @Column(length = 100)
     String district;
 
+    /** Forced to VARCHAR: Hibernate 6 would create a native MySQL enum that ddl-auto update never widens for GHN. */
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 10)
     ShippingSource shippingSource;
 

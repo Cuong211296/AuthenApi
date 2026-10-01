@@ -57,9 +57,11 @@ public class ShippingController {
                 .map(d -> new IdNameResponse(d.id(), d.name())).toList()));
     }
 
+    /** The province id is required so only districts that exist in that province can reach GHN. */
     @GetMapping("/shipping/ghn/wards")
-    ApiResponse<List<CodeNameResponse>> ghnWards(@RequestParam int districtId) {
-        return ApiResponse.ok(masterData(() -> ghnMasterDataService.wards(districtId).stream()
+    ApiResponse<List<CodeNameResponse>> ghnWards(@RequestParam int provinceId, @RequestParam int districtId) {
+        return ApiResponse.ok(masterData(() -> ghnMasterDataService.wards(provinceId, districtId)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_INPUT)).stream()
                 .map(w -> new CodeNameResponse(w.code(), w.name())).toList()));
     }
 

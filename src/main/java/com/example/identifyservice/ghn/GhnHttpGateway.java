@@ -8,6 +8,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,6 +31,8 @@ public class GhnHttpGateway implements GhnGateway {
 
     private final GhnProperties props;
     private final RestClient restClient;
+    /** A refusal (HTTP 4xx) can repeat on every request, so it is logged at WARN at most once per 5 minutes. */
+    private final LogThrottle refusalLog = new LogThrottle(Duration.ofMinutes(5));
 
     public GhnHttpGateway(GhnProperties props, RestClient.Builder builder) {
         this.props = props;
@@ -57,8 +60,8 @@ public class GhnHttpGateway implements GhnGateway {
         body.put("insurance_value", request.insuranceValue());
         JsonNode res = call("fee", () -> restClient.post().uri(FEE_PATH)
                 .header("Token", props.token()).header("ShopId", props.shopId())
-                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class), true);
-        requireOk(res);
+                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class), false);
+        requireOk(res, false);
         JsonNode total = res.path("data").path("total");
         if (!total.isIntegralNumber() || total.asLong() < 0)
             throw new GhnUnavailableException("GHN answered without a valid fee amount");
@@ -68,7 +71,7 @@ public class GhnHttpGateway implements GhnGateway {
     @Override
     public List<GhnProvince> provinces() {
         JsonNode res = call("province list", () -> restClient.get().uri(PROVINCE_PATH)
-                .header("Token", props.token()).retrieve().body(JsonNode.class), false);
+                .header("Token", props.token()).retrieve().body(JsonNode.class), true);
         List<GhnProvince> out = new ArrayList<>();
         for (JsonNode n : dataArray(res)) {
             Integer id = intOf(n, "ProvinceID", "province_id");
@@ -82,7 +85,7 @@ public class GhnHttpGateway implements GhnGateway {
     public List<GhnDistrict> districts(int provinceId) {
         JsonNode res = call("district list", () -> restClient.post().uri(DISTRICT_PATH)
                 .header("Token", props.token()).contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("province_id", provinceId)).retrieve().body(JsonNode.class), false);
+                .body(Map.of("province_id", provinceId)).retrieve().body(JsonNode.class), true);
         List<GhnDistrict> out = new ArrayList<>();
         for (JsonNode n : dataArray(res)) {
             Integer id = intOf(n, "DistrictID", "district_id");
@@ -98,7 +101,7 @@ public class GhnHttpGateway implements GhnGateway {
     public List<GhnWard> wards(int districtId) {
         JsonNode res = call("ward list", () -> restClient.post().uri(WARD_PATH)
                 .header("Token", props.token()).contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("district_id", districtId)).retrieve().body(JsonNode.class), false);
+                .body(Map.of("district_id", districtId)).retrieve().body(JsonNode.class), true);
         List<GhnWard> out = new ArrayList<>();
         for (JsonNode n : dataArray(res)) {
             String code = textOf(n, "WardCode", "ward_code");
@@ -111,15 +114,18 @@ public class GhnHttpGateway implements GhnGateway {
     }
 
     /** Runs the HTTP call; every failure becomes a GhnUnavailableException carrying no URL, token or body. */
-    private JsonNode call(String what, Supplier<JsonNode> request, boolean rejectOn400) {
+    private JsonNode call(String what, Supplier<JsonNode> request, boolean masterData) {
         if (!props.isEnabled()) throw new GhnUnavailableException("GHN is not configured");
         try {
             return request.get();
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
-            log.warn("GHN {} call failed: {} (HTTP {})", what, e.getClass().getSimpleName(), status);
-            if (rejectOn400 && status == HttpStatus.BAD_REQUEST.value())
-                throw new GhnRejectedException("GHN rejected the " + what + " query");
+            // A refusal concerns this one query (fee: HTTP 400; master data: any 4xx except 429), not GHN as a whole.
+            boolean refusal = masterData ? status >= 400 && status < 500 && status != 429
+                    : status == HttpStatus.BAD_REQUEST.value();
+            if (!refusal || refusalLog.allow(System.currentTimeMillis()))
+                log.warn("GHN {} call failed: {} (HTTP {})", what, e.getClass().getSimpleName(), status);
+            if (refusal) throw new GhnRejectedException("GHN rejected the " + what + " query");
             throw new GhnUnavailableException("GHN " + what + " call failed (HTTP " + status + ")");
         } catch (RuntimeException e) {
             log.warn("GHN {} call failed: {}", what, e.getClass().getSimpleName());
@@ -127,16 +133,18 @@ public class GhnHttpGateway implements GhnGateway {
         }
     }
 
-    private static void requireOk(JsonNode res) {
+    private static void requireOk(JsonNode res, boolean refuseBadCode) {
         if (res == null || !res.isObject() || !res.path("code").isIntegralNumber())
             throw new GhnUnavailableException("GHN answered an unexpected body");
-        if (res.get("code").asInt() != 200)
+        if (res.get("code").asInt() != 200) {
+            if (refuseBadCode) throw new GhnRejectedException("GHN answered code " + res.get("code").asInt());
             throw new GhnUnavailableException("GHN answered code " + res.get("code").asInt());
+        }
     }
 
     /** {@code data} may be null for an id without children: that is an empty list, not an outage. */
     private static List<JsonNode> dataArray(JsonNode res) {
-        requireOk(res);
+        requireOk(res, true);
         JsonNode data = res.get("data");
         if (data == null || data.isNull()) return List.of();
         if (!data.isArray()) throw new GhnUnavailableException("GHN answered an unexpected list");

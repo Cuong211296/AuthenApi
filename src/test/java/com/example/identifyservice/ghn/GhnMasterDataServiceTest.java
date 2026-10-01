@@ -67,8 +67,8 @@ class GhnMasterDataServiceTest {
         service.provinces();
         service.districts(202);
         service.districts(202);
-        service.wards(1442);
-        service.wards(1442);
+        service.wards(202, 1442);
+        service.wards(202, 1442);
         service.resolve(202, 1442, "20308");
         assertThat(ghn.provinceCalls).hasValue(1);
         assertThat(ghn.districtCalls).hasValue(1);
@@ -81,7 +81,7 @@ class GhnMasterDataServiceTest {
         clock.advance(Duration.ofHours(1).plusSeconds(1));
         service.provinces();
         service.districts(202);
-        service.wards(1442);
+        service.wards(202, 1442);
         assertThat(ghn.provinceCalls).hasValue(2);
         assertThat(ghn.districtCalls).hasValue(2);
         assertThat(ghn.wardCalls).hasValue(2);
@@ -132,11 +132,89 @@ class GhnMasterDataServiceTest {
         ghn.districtHandler = id -> List.of(new GhnDistrict(id * 10, id, "D"));
         ghn.provinceHandler = () -> java.util.stream.IntStream.range(0, 300)
                 .mapToObj(i -> new GhnProvince(i, "P" + i)).toList();
+        service = new GhnMasterDataService(ghn, ON, clock, 100_000);
         for (int i = 0; i < 300; i++) service.districts(i);
         assertThat(ghn.districtCalls).hasValue(300);
         service.districts(0);                                      // evicted: the cache is bounded below 300
         assertThat(ghn.districtCalls).hasValue(301);
         service.districts(299);                                    // the newest entry is still cached
         assertThat(ghn.districtCalls).hasValue(301);
+    }
+
+    @Test
+    void randomOrNegativeIdsNeverReachGhn() {
+        service.provinces();
+        int provinceCalls = ghn.provinceCalls.get();
+        assertThat(service.districts(-1)).isEmpty();
+        assertThat(service.districts(123456)).isEmpty();
+        assertThat(service.wards(-1, 1442)).isEmpty();
+        assertThat(service.wards(999, 1442)).isEmpty();           // unknown province
+        assertThat(ghn.districtCalls).hasValue(0);
+        assertThat(ghn.wardCalls).hasValue(0);
+        assertThat(ghn.provinceCalls).hasValue(provinceCalls);
+        assertThat(service.wards(202, 777777)).isEmpty();         // known province, unknown district
+        assertThat(service.wards(202, -5)).isEmpty();
+        assertThat(ghn.wardCalls).hasValue(0);
+        assertThat(service.wards(202, 1442)).isPresent();         // a real one still works
+        assertThat(ghn.wardCalls).hasValue(1);
+    }
+
+    @Test
+    void aPerKeyRefusalFailsOnlyThatLookupAndNeverOpensTheGlobalOutageFlag() {
+        ghn.wardHandler = id -> {
+            if (id == 1442) throw new GhnRejectedException("unknown district for GHN");
+            return List.of(FakeGhnGateway.PHUC_XA);
+        };
+        assertThatThrownBy(() -> service.wards(202, 1442)).isInstanceOf(GhnUnavailableException.class);
+        // the other lookups are not affected: no outage memory
+        assertThat(service.wards(201, 1490)).isPresent();
+        assertThat(service.isAvailable()).isTrue();
+        assertThat(service.districts(201)).isNotEmpty();
+        assertThat(service.resolve(201, 1490, "1A0101").status()).isEqualTo(Resolution.Status.RESOLVED);
+    }
+
+    @Test
+    void aTransportErrorOpensTheGlobalOutageFlag() {
+        service.provinces();
+        ghn.wardHandler = id -> {
+            throw new GhnUnavailableException("timeout");
+        };
+        assertThatThrownBy(() -> service.wards(202, 1442)).isInstanceOf(GhnUnavailableException.class);
+        ghn.useSampleData();
+        int calls = ghn.districtCalls.get();
+        assertThatThrownBy(() -> service.wards(201, 1490)).isInstanceOf(GhnUnavailableException.class);
+        assertThat(ghn.districtCalls).hasValue(calls);            // refused by the outage flag, GHN not called
+        assertThat(ghn.wardCalls).hasValue(1);
+    }
+
+    @Test
+    void emptyResultsAreCachedForOnlyAMinute() {
+        ghn.wardHandler = id -> List.of();
+        assertThat(service.wards(202, 1442)).hasValue(List.of());
+        service.wards(202, 1442);
+        assertThat(ghn.wardCalls).hasValue(1);
+        clock.advance(Duration.ofSeconds(59));
+        service.wards(202, 1442);
+        assertThat(ghn.wardCalls).hasValue(1);
+        clock.advance(Duration.ofSeconds(2));
+        ghn.useSampleData();
+        assertThat(service.wards(202, 1442).orElseThrow()).hasSize(1);
+        assertThat(ghn.wardCalls).hasValue(2);
+    }
+
+    @Test
+    void uncachedGhnCallsAreCappedPerMinuteAndStaleDataIsStillServed() {
+        service = new GhnMasterDataService(ghn, ON, clock, 3);
+        service.provinces();                                       // call 1
+        service.districts(202);                                    // call 2
+        service.wards(202, 1442);                                  // call 3
+        assertThatThrownBy(() -> service.districts(201)).isInstanceOf(GhnUnavailableException.class);
+        assertThat(ghn.districtCalls).hasValue(1);                 // the 4th uncached call never reached GHN
+        assertThat(service.districts(202)).isNotEmpty();           // cached data is unaffected by the cap
+        assertThat(service.isAvailable()).isTrue();                // the cap is not an outage
+
+        clock.advance(Duration.ofSeconds(61));
+        assertThat(service.districts(201)).isNotEmpty();           // window moved on
+        assertThat(ghn.districtCalls).hasValue(2);
     }
 }

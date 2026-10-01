@@ -1,10 +1,13 @@
 package com.example.identifyservice.ghn;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,13 +17,23 @@ import java.util.function.Supplier;
 /**
  * Cached GHN address master data (provinces, districts per province, wards per district) and id to name
  * resolution. Entries live 24 h; when a refresh fails the stale entry keeps being served (address names rarely
- * change). After a failed fetch GHN is considered down for {@link #DOWN_MEMORY} so a dead GHN does not make every
- * request wait for a timeout. No lock is ever held while calling GHN.
+ * change). Abuse limits, because the lookups are reachable from public endpoints:
+ * <ul>
+ * <li>a child list is only fetched for an id that exists in its (cached) parent list, so random ids never reach GHN;</li>
+ * <li>empty results are cached for {@link #EMPTY_TTL} (1 min) only;</li>
+ * <li>at most {@link #DEFAULT_MAX_CALLS_PER_MINUTE} (30) uncached GHN master-data calls per rolling minute globally;
+ * beyond that stale data is served or the lookup fails with GhnUnavailableException (the cap is not an outage);</li>
+ * <li>only transport errors, timeouts, HTTP 5xx and 429 mark GHN as down for {@link #DOWN_MEMORY} (30 s); a
+ * per-key refusal (HTTP 4xx, code != 200) fails only that lookup.</li>
+ * </ul>
+ * No lock is ever held while calling GHN.
  */
 @Service
 public class GhnMasterDataService {
     static final Duration TTL = Duration.ofHours(24);
+    static final Duration EMPTY_TTL = Duration.ofMinutes(1);
     static final Duration DOWN_MEMORY = Duration.ofSeconds(30);
+    static final int DEFAULT_MAX_CALLS_PER_MINUTE = 30;
     static final int MAX_DISTRICT_ENTRIES = 200;
     static final int MAX_WARD_ENTRIES = 1_000;
 
@@ -81,11 +94,19 @@ public class GhnMasterDataService {
     private final Cache<Integer, List<GhnDistrict>> districts = new Cache<>(MAX_DISTRICT_ENTRIES);
     private final Cache<Integer, List<GhnWard>> wards = new Cache<>(MAX_WARD_ENTRIES);
     private volatile Instant downUntil;
+    private final int maxCallsPerMinute;
+    private final Deque<Instant> recentCalls = new ArrayDeque<>();
 
+    @Autowired
     public GhnMasterDataService(GhnGateway gateway, GhnProperties props, Clock clock) {
+        this(gateway, props, clock, DEFAULT_MAX_CALLS_PER_MINUTE);
+    }
+
+    GhnMasterDataService(GhnGateway gateway, GhnProperties props, Clock clock, int maxCallsPerMinute) {
         this.gateway = gateway;
         this.props = props;
         this.clock = clock;
+        this.maxCallsPerMinute = maxCallsPerMinute;
     }
 
     public boolean isEnabled() {
@@ -104,7 +125,7 @@ public class GhnMasterDataService {
 
     /** @throws GhnUnavailableException when GHN is disabled or down and nothing is cached */
     public List<GhnProvince> provinces() {
-        return load(provinces, PROVINCES_KEY, () -> {
+        return load(provinces, PROVINCES_KEY, true, () -> {
             List<GhnProvince> list = gateway.provinces();
             if (list.isEmpty()) throw new GhnUnavailableException("GHN returned no provinces");
             return List.copyOf(list);
@@ -114,11 +135,21 @@ public class GhnMasterDataService {
     /** Districts of a province; empty (without calling GHN) when the province id is unknown. */
     public List<GhnDistrict> districts(int provinceId) {
         if (findProvince(provinceId).isEmpty()) return List.of();
-        return load(districts, provinceId, () -> List.copyOf(gateway.districts(provinceId)));
+        return load(districts, provinceId, false, () -> List.copyOf(gateway.districts(provinceId)));
     }
 
-    public List<GhnWard> wards(int districtId) {
-        return load(wards, districtId, () -> List.copyOf(gateway.wards(districtId)));
+    /**
+     * Wards of a district; empty (without calling GHN) when the province is unknown or the district does not
+     * belong to it.
+     */
+    public Optional<List<GhnWard>> wards(int provinceId, int districtId) {
+        if (findProvince(provinceId).isEmpty()) return Optional.empty();
+        if (districts(provinceId).stream().noneMatch(d -> d.id() == districtId)) return Optional.empty();
+        return Optional.of(loadWards(districtId));
+    }
+
+    private List<GhnWard> loadWards(int districtId) {
+        return load(wards, districtId, false, () -> List.copyOf(gateway.wards(districtId)));
     }
 
     /**
@@ -136,7 +167,7 @@ public class GhnMasterDataService {
             Optional<GhnDistrict> district = districts(provinceId).stream()
                     .filter(d -> d.id() == districtId && d.provinceId() == provinceId).findFirst();
             if (district.isEmpty()) return Resolution.invalid();
-            Optional<GhnWard> ward = wards(districtId).stream()
+            Optional<GhnWard> ward = loadWards(districtId).stream()
                     .filter(w -> w.code().equals(code) && w.districtId() == districtId).findFirst();
             if (ward.isEmpty()) return Resolution.invalid();
             return Resolution.resolved(new GhnAddress(province.get().name(), district.get().name(), ward.get().name()));
@@ -151,13 +182,27 @@ public class GhnMasterDataService {
         districts.clear();
         wards.clear();
         downUntil = null;
+        synchronized (recentCalls) {
+            recentCalls.clear();
+        }
+    }
+
+    private boolean tryAcquireCall(Instant now) {
+        synchronized (recentCalls) {
+            Instant windowStart = now.minus(Duration.ofMinutes(1));
+            while (!recentCalls.isEmpty() && !recentCalls.peekFirst().isAfter(windowStart)) recentCalls.pollFirst();
+            if (recentCalls.size() >= maxCallsPerMinute) return false;
+            recentCalls.addLast(now);
+            return true;
+        }
     }
 
     private Optional<GhnProvince> findProvince(int id) {
         return provinces().stream().filter(p -> p.id() == id).findFirst();
     }
 
-    private <K, V> V load(Cache<K, V> cache, K key, Supplier<V> fetch) {
+    /** @param global true for the province list, whose failure of any kind means GHN master data is unusable */
+    private <K, V> V load(Cache<K, V> cache, K key, boolean global, Supplier<V> fetch) {
         if (!props.isEnabled()) throw new GhnUnavailableException("GHN is not configured");
         Entry<V> entry = cache.get(key);
         Instant now = clock.instant();
@@ -167,13 +212,19 @@ public class GhnMasterDataService {
             if (entry != null) return entry.value();
             throw new GhnUnavailableException("GHN master data is temporarily down");
         }
+        if (!tryAcquireCall(now)) {
+            if (entry != null) return entry.value();
+            throw new GhnUnavailableException("GHN master data call limit reached");
+        }
         try {
             V value = fetch.get(); // no lock held here
             downUntil = null;
-            cache.put(key, new Entry<>(value, clock.instant().plus(TTL)));
+            Duration ttl = value instanceof List<?> list && list.isEmpty() ? EMPTY_TTL : TTL;
+            cache.put(key, new Entry<>(value, clock.instant().plus(ttl)));
             return value;
         } catch (RuntimeException e) {
-            downUntil = clock.instant().plus(DOWN_MEMORY);
+            // a per-key refusal says nothing about GHN as a whole
+            if (global || !(e instanceof GhnRejectedException)) downUntil = clock.instant().plus(DOWN_MEMORY);
             if (entry != null) return entry.value();
             if (e instanceof GhnUnavailableException u) throw u;
             throw new GhnUnavailableException("GHN master data call failed: " + e.getClass().getSimpleName());

@@ -105,7 +105,7 @@ class ShippingGhnNoTxTest {
         mvc.perform(get("/shipping/ghn/districts").param("provinceId", "202")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.result[0].id").value(1442))
                 .andExpect(jsonPath("$.result[0].name").value("Quận 1"));
-        mvc.perform(get("/shipping/ghn/wards").param("districtId", "1442")).andExpect(status().isOk())
+        mvc.perform(get("/shipping/ghn/wards").param("provinceId", "202").param("districtId", "1442")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.result[0].code").value("20308"))
                 .andExpect(jsonPath("$.result[0].name").value("Phường Bến Nghé"));
         mvc.perform(get("/shipping/ghn/districts").param("provinceId", "999")).andExpect(status().isOk())
@@ -118,7 +118,7 @@ class ShippingGhnNoTxTest {
                 .andExpect(jsonPath("$.code").value(2019));
         mvc.perform(get("/shipping/ghn/districts").param("provinceId", "202")).andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value(2019));
-        mvc.perform(get("/shipping/ghn/wards").param("districtId", "1442")).andExpect(status().isBadGateway())
+        mvc.perform(get("/shipping/ghn/wards").param("provinceId", "202").param("districtId", "1442")).andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value(2019));
     }
 
@@ -159,6 +159,26 @@ class ShippingGhnNoTxTest {
         quote("{\"provinceId\":202,\"districtId\":1442,\"wardCode\":\"1A0101\"}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1011));
         quote("{\"provinceId\":-1,\"districtId\":1442,\"wardCode\":\"20308\"}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+    }
+
+    @Test
+    void wardsRequireAKnownProvinceAndDistrictAndNeverCallGhnForUnknownIds() throws Exception {
+        ghn.useSampleData();
+        for (String[] bad : new String[][]{{"999", "1442"}, {"202", "1490"}, {"202", "-1"}, {"-3", "1442"}, {"202", "987654"}})
+            mvc.perform(get("/shipping/ghn/wards").param("provinceId", bad[0]).param("districtId", bad[1]))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(1011));
+        org.assertj.core.api.Assertions.assertThat(ghn.wardCalls).hasValue(0);
+        mvc.perform(get("/shipping/ghn/wards").param("districtId", "1442")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+    }
+
+    @Test
+    void malformedOrMissingQueryParametersAre400InvalidInput() throws Exception {
+        ghn.useSampleData();
+        mvc.perform(get("/shipping/ghn/districts").param("provinceId", "abc")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+        mvc.perform(get("/shipping/ghn/districts")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1011));
     }
 

@@ -375,6 +375,20 @@ class ShippingQuoteGhnTest {
     }
 
     @Test
+    void ghnFeeFailureForAMergedOldProvinceFallsBackToTheMergedUnitsTableRate() {
+        ghn.provinceHandler = () -> java.util.List.of(new com.example.identifyservice.ghn.GhnProvince(203, "Bình Dương"));
+        ghn.districtHandler = id -> java.util.List.of(new com.example.identifyservice.ghn.GhnDistrict(2031, 203, "Thủ Dầu Một"));
+        ghn.wardHandler = id -> java.util.List.of(new com.example.identifyservice.ghn.GhnWard("W203", 2031, "Phường Phú Cường"));
+        service = serviceWith(GHN_ON, GHTK_OFF);
+        QuoteAddress bd = new QuoteAddress(null, null, null, "1 St", 203, 2031, "W203");
+
+        ShippingQuote q = service.quote(cart(tee, 1), bd);
+
+        assertThat(q).isEqualTo(new ShippingQuote(25_000, ShippingSource.TABLE, true, 300, true, MSG_GHN_DOWN));
+        assertThat(service.resolveAddress(bd).provinceName()).isEqualTo("Bình Dương");   // order keeps the GHN name
+    }
+
+    @Test
     void providerConfigPicksGhnThenGhtkThenTable() {
         assertThat(service.providerConfig()).isEqualTo(new ShippingQuoteService.ProviderConfig("GHN", "GHN_IDS"));
 

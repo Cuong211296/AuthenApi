@@ -52,7 +52,8 @@ public class ShippingService {
             Optional<ShippingRate> hit = repository.findByProvinceIgnoreCase(candidate);
             if (hit.isPresent()) return hit;
         }
-        return Optional.empty();
+        return com.example.identifyservice.util.VietnamOldProvinces.newUnitOf(trimmed)
+                .flatMap(repository::findByProvinceIgnoreCase);
     }
 
     @Transactional(readOnly = true)
