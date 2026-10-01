@@ -21,4 +21,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     @Modifying
     @Query("update ProductVariant v set v.stock = v.stock + :qty where v.id = :id")
     int incrementStock(@Param("id") String id, @Param("qty") int qty);
+
+    /** Stats: active variants of active products with stock at or below the threshold, lowest first. */
+    @Query("""
+            select v from ProductVariant v join fetch v.product p
+            where v.active = true and p.active = true and v.stock <= :threshold
+            order by v.stock asc, p.name asc, v.sku asc
+            """)
+    java.util.List<com.example.identifyservice.entity.ProductVariant> findLowStock(
+            @Param("threshold") int threshold, org.springframework.data.domain.Pageable pageable);
 }

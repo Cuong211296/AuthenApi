@@ -72,4 +72,26 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     int markCodPaid(@Param("id") String id, @Param("now") Instant now,
                     @Param("method") com.example.identifyservice.enums.PaymentMethod method,
                     @Param("paid") PaymentStatus paid, @Param("unpaid") PaymentStatus unpaid);
+
+    /** Stats: revenue orders (paid, not cancelled) paid in [from, to), with items fetched in one query. */
+    @Query("""
+            select distinct o from ShopOrder o left join fetch o.items
+            where o.paymentStatus = com.example.identifyservice.enums.PaymentStatus.PAID
+              and o.status <> com.example.identifyservice.enums.OrderStatus.CANCELLED
+              and o.paidAt >= :from and o.paidAt < :to
+            """)
+    List<Order> findRevenueOrdersWithItems(@Param("from") Instant from, @Param("to") Instant to);
+
+    /** Stats: lightweight rows of every order created in [from, to). */
+    @Query("""
+            select o.createdAt as createdAt, o.status as status, o.paymentMethod as paymentMethod
+            from ShopOrder o where o.createdAt >= :from and o.createdAt < :to
+            """)
+    List<CreatedOrderRow> findCreatedOrderRows(@Param("from") Instant from, @Param("to") Instant to);
+
+    interface CreatedOrderRow {
+        Instant getCreatedAt();
+        OrderStatus getStatus();
+        com.example.identifyservice.enums.PaymentMethod getPaymentMethod();
+    }
 }

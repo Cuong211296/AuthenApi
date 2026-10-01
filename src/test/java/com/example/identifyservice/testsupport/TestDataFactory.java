@@ -17,12 +17,17 @@ import com.example.identifyservice.repository.PaymentRepository;
 import com.example.identifyservice.repository.ProductRepository;
 import com.example.identifyservice.repository.ProductVariantRepository;
 import com.example.identifyservice.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.Set;
+import com.example.identifyservice.entity.Role;
+import com.example.identifyservice.repository.RoleRepository;
 
 @Component
 public class TestDataFactory {
@@ -32,6 +37,8 @@ public class TestDataFactory {
     @Autowired UserRepository users;
     @Autowired OrderRepository orders;
     @Autowired PaymentRepository payments;
+    @Autowired RoleRepository roles;
+    @PersistenceContext EntityManager em;
 
     public Category category(String slug) {
         return categories.findBySlug(slug).orElseGet(() ->
@@ -77,5 +84,50 @@ public class TestDataFactory {
         return payments.save(Payment.builder().order(order).requestId(UUID.randomUUID().toString())
                 .providerOrderId(providerOrderId).amount(order.getTotal())
                 .status(PaymentAttemptStatus.PENDING).build());
+    }
+
+    /** Item spec for {@link #datedOrder}. */
+    public record Line(String productName, long unitPrice, int quantity, Long unitCost) {}
+
+    /**
+     * An order whose created_at / paid_at are forced with native SQL (both are insert-time / not controllable
+     * through normal saves). Call {@link #settle()} once after creating all data and before reading.
+     */
+    public Order datedOrder(User user, OrderStatus status, PaymentMethod method, PaymentStatus payment,
+                            Instant createdAt, Instant paidAt, long shippingFee, Line... lines) {
+        long subtotal = 0;
+        for (Line l : lines) subtotal += l.unitPrice() * l.quantity();
+        Order order = Order.builder().code("DHSTAT" + UUID.randomUUID().toString().substring(0, 10).toUpperCase())
+                .user(user).status(status).paymentMethod(method).paymentStatus(payment).receiverName("Test")
+                .phone("0901234567").email("test@example.com").address("1 Test St").province("Hanoi")
+                .subtotal(subtotal).shippingFee(shippingFee).total(subtotal + shippingFee).build();
+        for (Line l : lines) {
+            order.getItems().add(OrderItem.builder().order(order).variantId(UUID.randomUUID().toString())
+                    .productName(l.productName()).size("M").color("red").unitPrice(l.unitPrice())
+                    .quantity(l.quantity()).unitCost(l.unitCost()).build());
+        }
+        order = orders.saveAndFlush(order);
+        em.createNativeQuery("update orders set created_at = ?1, paid_at = ?2 where id = ?3")
+                .setParameter(1, createdAt).setParameter(2, paidAt).setParameter(3, order.getId()).executeUpdate();
+        return order;
+    }
+
+    /** A user (optionally ADMIN) whose created_at is forced with native SQL. */
+    public User datedUser(String username, Instant createdAt, boolean admin) {
+        User u = User.builder().username(username).password("x").dob(LocalDate.of(2000, 1, 1)).build();
+        if (admin) {
+            Role role = roles.findByName("ADMIN").orElseGet(() -> roles.save(Role.builder().name("ADMIN").build()));
+            u.setRoles(Set.of(role));
+        }
+        u = users.saveAndFlush(u);
+        em.createNativeQuery("update user set created_at = ?1 where id = ?2")
+                .setParameter(1, createdAt).setParameter(2, u.getId()).executeUpdate();
+        return u;
+    }
+
+    /** Flushes pending SQL and clears the persistence context so reads see the forced timestamps. */
+    public void settle() {
+        em.flush();
+        em.clear();
     }
 }
