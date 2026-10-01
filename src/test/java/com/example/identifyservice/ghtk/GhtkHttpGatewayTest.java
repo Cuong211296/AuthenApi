@@ -84,6 +84,38 @@ class GhtkHttpGatewayTest {
     }
 
     @Test
+    void requestPickupFromSettingsReplacesTheWholeEnvPickup() {
+        var props = new GhtkProperties("T", "SRC", "https://ghtk.test", "Hà Nội", "Phường Test", "Quận Test",
+                "1 Kho", "road");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer s = MockRestServiceServer.bindTo(builder).build();
+        s.expect(r -> {
+                    var q = decodedQuery(r.getURI());
+                    assertThat(q).containsEntry("pick_province", "Đà Nẵng").containsEntry("pick_ward", "Phường A")
+                            .doesNotContainKey("pick_district").doesNotContainKey("pick_address");
+                })
+                .andRespond(withSuccess("{\"success\":true,\"fee\":{\"fee\":1,\"delivery\":true}}", MediaType.APPLICATION_JSON));
+        new GhtkHttpGateway(props, builder).calculateFee(new GhtkFeeRequest(REQUEST.province(), REQUEST.ward(),
+                REQUEST.address(), REQUEST.weightGrams(), REQUEST.value(), "Đà Nẵng", "Phường A", null, null));
+        s.verify();
+    }
+
+    @Test
+    void settingsOnlyPickupWorksWithoutEnvPickFields() {
+        var props = new GhtkProperties("T", "SRC", "https://ghtk.test", "", "", null, null, "road");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer s = MockRestServiceServer.bindTo(builder).build();
+        s.expect(r -> assertThat(decodedQuery(r.getURI())).containsEntry("pick_province", "Đà Nẵng"))
+                .andRespond(withSuccess("{\"success\":true,\"fee\":{\"fee\":1,\"delivery\":true}}", MediaType.APPLICATION_JSON));
+        new GhtkHttpGateway(props, builder).calculateFee(new GhtkFeeRequest(REQUEST.province(), REQUEST.ward(),
+                REQUEST.address(), REQUEST.weightGrams(), REQUEST.value(), "Đà Nẵng", "Phường A", null, null));
+        s.verify();
+        assertThat(props.isEnabled()).isFalse();
+        assertThat(props.isEnabled("Đà Nẵng", "Phường A")).isTrue();
+        assertThat(props.isEnabled("Đà Nẵng", " ")).isFalse();
+    }
+
+    @Test
     void deliveryFalseIsReportedAsNotDeliverable() {
         server.expect(r -> {}).andRespond(withSuccess("{\"success\":true,\"fee\":{\"fee\":0,\"delivery\":false}}",
                 MediaType.APPLICATION_JSON));

@@ -50,7 +50,12 @@ public class GhnHttpGateway implements GhnGateway {
     public GhnFeeResult calculateFee(GhnFeeRequest request) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("service_type_id", props.serviceType());
-        if (props.fromDistrictId() != null) body.put("from_district_id", props.fromDistrictId());
+        if (request.hasFromPair()) {   // GHN ignores a lone from_district_id: district and ward always go together
+            body.put("from_district_id", request.fromDistrictId());
+            body.put("from_ward_code", request.fromWardCode().trim());
+        } else if (props.fromDistrictId() != null) {
+            body.put("from_district_id", props.fromDistrictId());
+        }
         body.put("to_district_id", request.toDistrictId());
         body.put("to_ward_code", request.toWardCode());
         body.put("weight", request.weightGrams());

@@ -36,19 +36,24 @@ public class GhtkHttpGateway implements GhtkGateway {
 
     @Override
     public GhtkFeeResult calculateFee(GhtkFeeRequest request) {
-        if (!props.isEnabled()) throw new GhtkUnavailableException("GHTK is not configured");
+        if (!props.credentialsConfigured()) throw new GhtkUnavailableException("GHTK is not configured");
         try {
             JsonNode res = restClient.get()
                     .uri(uri -> {
                         // values go in as URI template variables so they are percent-encoded as UTF-8 strictly
                         Map<String, Object> vars = new HashMap<>();
                         uri.path("/services/shipment/fee");
-                        param(uri, vars, "pick_province", props.pickProvince());
-                        param(uri, vars, "pick_ward", props.pickWard());
-                        if (!GhtkProperties.blank(props.pickDistrict()))
-                            param(uri, vars, "pick_district", props.pickDistrict());
-                        if (!GhtkProperties.blank(props.pickAddress()))
-                            param(uri, vars, "pick_address", props.pickAddress());
+                        // the pick-up comes either wholly from the request (shop settings) or wholly from properties
+                        boolean fromRequest = !GhtkProperties.blank(request.pickProvince())
+                                && !GhtkProperties.blank(request.pickWard());
+                        String pickProvince = fromRequest ? request.pickProvince() : props.pickProvince();
+                        String pickWard = fromRequest ? request.pickWard() : props.pickWard();
+                        String pickDistrict = fromRequest ? request.pickDistrict() : props.pickDistrict();
+                        String pickAddress = fromRequest ? request.pickAddress() : props.pickAddress();
+                        param(uri, vars, "pick_province", pickProvince);
+                        param(uri, vars, "pick_ward", pickWard);
+                        if (!GhtkProperties.blank(pickDistrict)) param(uri, vars, "pick_district", pickDistrict);
+                        if (!GhtkProperties.blank(pickAddress)) param(uri, vars, "pick_address", pickAddress);
                         param(uri, vars, "province", GhtkNames.province(request.province()));
                         param(uri, vars, "ward", request.ward());
                         param(uri, vars, "address", request.address() == null ? "" : request.address());

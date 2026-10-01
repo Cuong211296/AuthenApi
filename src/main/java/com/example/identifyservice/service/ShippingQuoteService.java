@@ -21,6 +21,7 @@ import com.example.identifyservice.ghtk.GhtkGateway;
 import com.example.identifyservice.ghtk.GhtkProperties;
 import com.example.identifyservice.ghtk.GhtkUnavailableException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -69,6 +70,8 @@ public class ShippingQuoteService {
     private final ShippingService shippingService;
     private final Clock clock;
     private final CartMeasurer cartMeasurer;
+    /** Null only in tests that do not care about settings: the pickup is then always empty (env behaviour). */
+    private final ShopSettingsService settings;
     /** Insertion-ordered; every entry has the same TTL so the eldest is always the first to expire. */
     private final Map<String, CacheEntry> cache = new LinkedHashMap<>();
     private final CarrierBreaker ghtkBreaker;
@@ -77,6 +80,13 @@ public class ShippingQuoteService {
     public ShippingQuoteService(GhtkGateway ghtk, GhtkProperties props, GhnGateway ghn, GhnProperties ghnProps,
                                 GhnMasterDataService masterData, ShippingService shippingService, Clock clock,
                                 CartMeasurer cartMeasurer) {
+        this(ghtk, props, ghn, ghnProps, masterData, shippingService, clock, cartMeasurer, null);
+    }
+
+    @Autowired
+    public ShippingQuoteService(GhtkGateway ghtk, GhtkProperties props, GhnGateway ghn, GhnProperties ghnProps,
+                                GhnMasterDataService masterData, ShippingService shippingService, Clock clock,
+                                CartMeasurer cartMeasurer, ShopSettingsService settings) {
         this.ghtk = ghtk;
         this.props = props;
         this.ghn = ghn;
@@ -85,14 +95,26 @@ public class ShippingQuoteService {
         this.shippingService = shippingService;
         this.clock = clock;
         this.cartMeasurer = cartMeasurer;
+        this.settings = settings;
         this.ghtkBreaker = new CarrierBreaker(clock);
         this.ghnBreaker = new CarrierBreaker(clock);
+        // a changed pickup must never be answered with a quote priced from the old one
+        if (settings != null) settings.addChangeListener(this::clearQuoteCache);
+    }
+
+    /** The shop pickup address from the in-memory settings snapshot (no database access per quote). */
+    private PickupAddress pickup() {
+        return settings == null ? PickupAddress.EMPTY : settings.pickup();
+    }
+
+    private boolean ghtkEnabled(PickupAddress pickup) {
+        return props.isEnabled(pickup.provinceName(), pickup.wardName());
     }
 
     /** Provider and address mode for the storefront: GHN id selects only while GHN master data is reachable. */
     public ProviderConfig providerConfig() {
         if (masterData.isAvailable()) return new ProviderConfig("GHN", "GHN_IDS");
-        return new ProviderConfig(props.isEnabled() ? "GHTK" : "TABLE", "TEXT");
+        return new ProviderConfig(ghtkEnabled(pickup()) ? "GHTK" : "TABLE", "TEXT");
     }
 
     /**
@@ -151,19 +173,28 @@ public class ShippingQuoteService {
     /** Quotes an address already returned by {@link #resolveAddress}. */
     public ShippingQuote quoteResolved(CartMeasure measure, QuoteAddress address) {
         int weightGrams = measure.weightGrams();
+        PickupAddress pickup = pickup();
         String ghnFailure = null;
         if (ghnProps.isEnabled() && address.hasGhnIds()) {
-            ShippingQuote q = ghnQuote(measure, address);
+            ShippingQuote q = ghnQuote(measure, address, pickup);
             if (q != null) return q;
             ghnFailure = MSG_GHN_DOWN_FALLBACK;
         }
 
-        if (!props.isEnabled() || !address.hasTextNames()) return tableQuote(address, weightGrams, ghnFailure);
+        if (!ghtkEnabled(pickup) || !address.hasTextNames()) return tableQuote(address, weightGrams, ghnFailure);
 
         String province = address.provinceName().trim();
         String ward = address.wardName().trim();
         String safeAddress = address.address() == null ? "" : address.address().trim();
-        String key = ghtkCacheKey(province, ward, safeAddress, weightGrams, measure.value());
+        // the pick-up is wholly from the settings (when they name province and ward) or wholly from the environment
+        boolean fromSettings = pickup.hasNamedOrigin();
+        String pickProvince = fromSettings ? pickup.provinceName().trim() : props.pickProvince();
+        String pickWard = fromSettings ? pickup.wardName().trim() : props.pickWard();
+        String pickDistrict = fromSettings ? pickup.districtName() : props.pickDistrict();
+        String pickAddress = fromSettings ? pickup.address() : props.pickAddress();
+        String pickSignature = normalize(pickProvince) + "/" + normalize(pickDistrict) + "/" + normalize(pickWard)
+                + "/" + normalize(pickAddress);
+        String key = ghtkCacheKey(pickSignature, province, ward, safeAddress, weightGrams, measure.value());
         ShippingQuote cached = cacheGet(key);
         if (cached != null) return cached;
 
@@ -172,7 +203,8 @@ public class ShippingQuoteService {
 
         GhtkFeeResult result;
         try {
-            result = ghtk.calculateFee(new GhtkFeeRequest(province, ward, safeAddress, weightGrams, measure.value()));
+            result = ghtk.calculateFee(new GhtkFeeRequest(province, ward, safeAddress, weightGrams, measure.value(),
+                    pickProvince, pickWard, pickDistrict, pickAddress));
             ghtkBreaker.success(); // a clean answer (even a refusal) means GHTK is reachable
         } catch (RuntimeException e) {
             if (!(e instanceof GhtkUnavailableException))
@@ -191,9 +223,13 @@ public class ShippingQuoteService {
     }
 
     /** GHN fee, or null when GHN cannot answer (down, breaker open, refused): the caller then falls back. */
-    private ShippingQuote ghnQuote(CartMeasure measure, QuoteAddress address) {
+    private ShippingQuote ghnQuote(CartMeasure measure, QuoteAddress address, PickupAddress pickup) {
         int weightGrams = measure.weightGrams();
-        String key = ghnCacheKey(address.districtId(), address.wardCode().trim(), weightGrams, measure.value());
+        // both from_district_id and from_ward_code or neither: GHN ignores a lone from_district_id
+        Integer fromDistrict = pickup.hasGhnOrigin() ? pickup.districtId() : null;
+        String fromWard = pickup.hasGhnOrigin() ? pickup.wardCode().trim() : null;
+        String key = ghnCacheKey(fromDistrict, fromWard, address.districtId(), address.wardCode().trim(), weightGrams,
+                measure.value());
         ShippingQuote cached = cacheGet(key);
         if (cached != null) return cached;
 
@@ -201,7 +237,8 @@ public class ShippingQuoteService {
         if (permit == CarrierBreaker.Permit.DENIED) return null;
         try {
             GhnFeeResult result = ghn.calculateFee(new GhnFeeRequest(address.districtId(),
-                    address.wardCode().trim(), weightGrams, Math.min(measure.value(), MAX_INSURANCE_VALUE)));
+                    address.wardCode().trim(), weightGrams, Math.min(measure.value(), MAX_INSURANCE_VALUE),
+                    fromDistrict, fromWard));
             if (result == null || result.total() < 0) {
                 ghnBreaker.failure();
                 return null;
@@ -249,13 +286,15 @@ public class ShippingQuoteService {
                 : shippingService.findRate(address.provinceName());
     }
 
-    private static String ghtkCacheKey(String province, String ward, String address, int weight, long value) {
-        return "ghtk|" + normalize(province) + "|" + normalize(ward) + "|" + normalize(address) + "|" + weight + "|"
+    private static String ghtkCacheKey(String pick, String province, String ward, String address, int weight,
+                                       long value) {
+        return "ghtk|" + pick + "|" + normalize(province) + "|" + normalize(ward) + "|" + normalize(address) + "|" + weight + "|"
                 + bucket(value);
     }
 
-    private static String ghnCacheKey(int districtId, String wardCode, int weight, long value) {
-        return "ghn|" + districtId + "|" + normalize(wardCode) + "|" + weight + "|" + bucket(value);
+    private static String ghnCacheKey(Integer fromDistrict, String fromWard, int districtId, String wardCode,
+                                      int weight, long value) {
+        return "ghn|" + (fromDistrict == null ? "env" : fromDistrict + "/" + normalize(fromWard)) + "|" + districtId + "|" + normalize(wardCode) + "|" + weight + "|" + bucket(value);
     }
 
     private static long bucket(long value) {
@@ -289,6 +328,16 @@ public class ShippingQuoteService {
             it.remove();
         }
         cache.put(key, new CacheEntry(quote, now.plus(CACHE_TTL)));
+    }
+
+    /**
+     * Drops the cached quotes only (called after the shop settings change). Circuit-breaker state and GHN master
+     * data are left alone: a settings edit says nothing about whether a carrier is reachable.
+     */
+    public void clearQuoteCache() {
+        synchronized (this) {
+            cache.clear();
+        }
     }
 
     /** Clears the quote cache and GHN master data, and closes both circuit breakers (used by tests). */

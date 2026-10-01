@@ -96,6 +96,37 @@ class GhnHttpGatewayTest {
     }
 
     @Test
+    void settingsPickupSendsBothFromFieldsAndOverridesTheEnvDistrict() {
+        gateway = build(new GhnProperties(TOKEN, "198765", "https://ghn.test", 1485, 2, 25, 20, 10));
+        server.expect(requestTo(FEE_URL))
+                .andExpect(r -> {
+                    JsonNode b = body(r);
+                    assertThat(b.get("from_district_id").asInt()).isEqualTo(1442);
+                    assertThat(b.get("from_ward_code").asText()).isEqualTo("20308");
+                })
+                .andRespond(withSuccess("{\"code\":200,\"data\":{\"total\":1}}", MediaType.APPLICATION_JSON));
+        gateway.calculateFee(new GhnFeeRequest(1490, "1A0101", 300, 1, 1442, "20308"));
+        server.verify();
+    }
+
+    @Test
+    void aLoneFromDistrictOrFromWardIsNeverSent() {
+        for (GhnFeeRequest lone : new GhnFeeRequest[]{new GhnFeeRequest(1490, "1A0101", 300, 1, 1442, null),
+                new GhnFeeRequest(1490, "1A0101", 300, 1, null, "20308"),
+                new GhnFeeRequest(1490, "1A0101", 300, 1, 1442, " ")}) {
+            gateway = build(PROPS);
+            server.expect(requestTo(FEE_URL))
+                    .andExpect(r -> {
+                        assertThat(body(r).has("from_district_id")).isFalse();
+                        assertThat(body(r).has("from_ward_code")).isFalse();
+                    })
+                    .andRespond(withSuccess("{\"code\":200,\"data\":{\"total\":1}}", MediaType.APPLICATION_JSON));
+            gateway.calculateFee(lone);
+            server.verify();
+        }
+    }
+
+    @Test
     void feeFailuresAreUnavailableAndNeverLeakTheToken() {
         String[] bodies = {"{\"code\":400,\"message\":\"bad\"}", "{\"data\":{\"total\":1}}", "not json", "[]",
                 "{\"code\":200,\"data\":{}}", "{\"code\":200,\"data\":{\"total\":-5}}",
