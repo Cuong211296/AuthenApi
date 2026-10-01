@@ -2,9 +2,12 @@ package com.example.identifyservice.controller;
 
 import com.example.identifyservice.dto.request.ApiResponse;
 import com.example.identifyservice.dto.request.ShippingFeeUpdateRequest;
+import com.example.identifyservice.dto.request.ShippingQuoteRequest;
 import com.example.identifyservice.dto.request.ShippingRateRequest;
 import com.example.identifyservice.dto.response.ShippingFeeResponse;
+import com.example.identifyservice.dto.response.ShippingQuoteResponse;
 import com.example.identifyservice.dto.response.ShippingRateResponse;
+import com.example.identifyservice.service.ShippingQuoteService;
 import com.example.identifyservice.service.ShippingService;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -19,6 +22,14 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ShippingController {
     ShippingService shippingService;
+    ShippingQuoteService shippingQuoteService;
+
+    /** Authenticated: quotes the shipping fee of the signed-in user's current cart. */
+    @PostMapping("/shipping/quote")
+    ApiResponse<ShippingQuoteResponse> quote(@RequestBody @Valid ShippingQuoteRequest request) {
+        return ApiResponse.ok(ShippingQuoteResponse.from(
+                shippingQuoteService.quoteCurrentCart(request.province(), request.ward(), request.address())));
+    }
 
     @GetMapping("/shipping/fee")
     ApiResponse<ShippingFeeResponse> fee(@RequestParam String province) {

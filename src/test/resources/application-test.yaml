@@ -35,3 +35,11 @@ momo:
   secret-key: SECRET
   request-type: payWithMethod
   ipn-url: http://localhost:8081/identity/payments/momo/ipn
+
+ghtk:
+  token: TEST-TOKEN
+  client-source: TESTSRC
+  base-url: https://ghtk.test
+  pick-province: Hà Nội
+  pick-ward: Phường Test
+  transport: road

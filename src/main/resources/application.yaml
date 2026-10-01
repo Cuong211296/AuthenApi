@@ -53,3 +53,13 @@ momo:
   secret-key: ${MOMO_SECRET_KEY:}
   request-type: ${MOMO_REQUEST_TYPE:payWithMethod}
   ipn-url: ${MOMO_IPN_URL:http://localhost:8081/identity/payments/momo/ipn}
+
+ghtk:
+  token: ${GHTK_TOKEN:}
+  client-source: ${GHTK_CLIENT_SOURCE:}
+  base-url: ${GHTK_BASE_URL:https://services.giaohangtietkiem.vn}
+  pick-province: ${GHTK_PICK_PROVINCE:}
+  pick-ward: ${GHTK_PICK_WARD:}
+  pick-district: ${GHTK_PICK_DISTRICT:}
+  pick-address: ${GHTK_PICK_ADDRESS:}
+  transport: ${GHTK_TRANSPORT:road}
