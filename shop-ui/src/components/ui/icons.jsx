@@ -102,3 +102,9 @@ export const StoreIcon = (p) => (
 export const EditIcon = (p) => (
   <Icon {...p}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" /><path d="m13.5 6.5 4 4" /></Icon>
 );
+export const ChartIcon = (p) => (
+  <Icon {...p}><path d="M4 4v16h16" /><path d="m7 15 4-4 3 3 5-6" /></Icon>
+);
+export const TableIcon = (p) => (
+  <Icon {...p}><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M4 10h16M10 10v9" /></Icon>
+);
