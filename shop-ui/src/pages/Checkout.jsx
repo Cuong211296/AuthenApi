@@ -3,8 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useCart } from '../context/CartContext.jsx';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber.js';
+import { useShippingQuote } from '../hooks/useShippingQuote.js';
 import { formatVnd } from '../utils/money.js';
 import { checkoutErrors, normalizeCheckoutForm } from '../utils/checkout.js';
+import {
+  NOT_DELIVERABLE_MESSAGE, cartKeyOf, formatWeight, orderTotal, quoteInputsReady, shippingDisplay,
+} from '../utils/shipping.js';
+import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import Field from '../components/ui/Field.jsx';
@@ -29,7 +34,7 @@ const PAYMENT_OPTIONS = [
   },
 ];
 
-const FIELD_ORDER = ['receiverName', 'phone', 'email', 'province', 'address'];
+const FIELD_ORDER = ['receiverName', 'phone', 'email', 'province', 'ward', 'address'];
 
 /** Counts smoothly to the new amount (mounted once, so the first render shows the real value). */
 function Money({ value, className }) {
@@ -65,7 +70,7 @@ export default function Checkout() {
   const { cart, reload } = useCart();
   const navigate = useNavigate();
   const [provinces, setProvinces] = useState([]);
-  const [form, setForm] = useState({ receiverName: '', phone: '', email: '', address: '', province: '', note: '', paymentMethod: 'MOMO' });
+  const [form, setForm] = useState({ receiverName: '', phone: '', email: '', address: '', ward: '', province: '', note: '', paymentMethod: 'MOMO' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false); // guards double submits that arrive before `busy` re-renders
@@ -92,14 +97,27 @@ export default function Checkout() {
     return () => { ignore = true; };
   }, [reload]);
 
-  const shippingFee = useMemo(() => provinces.find((p) => p.province === form.province)?.fee ?? 0, [provinces, form.province]);
+  const tableFee = useMemo(() => provinces.find((p) => p.province === form.province)?.fee ?? 0, [provinces, form.province]);
+  const quote = useShippingQuote({
+    province: form.province,
+    ward: form.ward,
+    address: form.address,
+    cartKey: cartKeyOf(cart),
+    enabled: loaded && !placed && cart.items.length > 0 && quoteInputsReady(form),
+  });
+  const ship = shippingDisplay({ state: quote.state, quote: quote.quote, tableFee, province: form.province });
+  const shippingFee = ship?.fee ?? 0;
+  // The address the server rejected at checkout (2018); the block lifts as soon as the address changes.
+  const addressKey = `${form.province}|${form.ward.trim()}|${form.address.trim()}`;
+  const [rejectedKey, setRejectedKey] = useState('');
+  const notDeliverable = (quote.state === 'ready' && quote.quote?.deliverable === false) || rejectedKey === addressKey;
   const hasUnavailable = cart.items.some((i) => !i.available);
   const errors = useMemo(() => checkoutErrors(form), [form]);
   const shown = (key) => (submitted || touched[key] ? errors[key] : undefined);
 
   async function submit(e) {
     e.preventDefault();
-    if (busy || inFlight.current) return;
+    if (busy || inFlight.current || notDeliverable) return;
     setError('');
     setSubmitted(true);
     const firstInvalid = FIELD_ORDER.find((key) => errors[key]);
@@ -116,6 +134,10 @@ export default function Checkout() {
     } catch (err) {
       inFlight.current = false;
       setBusy(false);
+      if (err.code === 2018) {
+        setRejectedKey(`${payload.province}|${payload.ward}|${payload.address}`);
+        return document.getElementById('co-ward')?.focus();
+      }
       return setError(err.code === 1011
         ? 'Thông tin chưa hợp lệ. Hãy kiểm tra lại họ tên, số điện thoại, email và địa chỉ.'
         : err.message);
@@ -200,10 +222,19 @@ export default function Checkout() {
                 {provinces.map((p) => <option key={p.id} value={p.province}>{p.province}</option>)}
               </Field>
               <Field
-                id="co-address" label="Địa chỉ" value={form.address} onChange={set('address')} onBlur={blur('address')}
-                error={shown('address')} maxLength={300} autoComplete="street-address" required
-                placeholder="Số nhà, đường, phường/xã"
+                id="co-ward" label="Phường/Xã" value={form.ward} onChange={set('ward')} onBlur={blur('ward')}
+                error={shown('ward')} maxLength={100} autoComplete="address-level2" required placeholder="Ví dụ: Phường 14"
               />
+              <Field
+                className="co-fields__wide" id="co-address" label="Địa chỉ" value={form.address} onChange={set('address')}
+                onBlur={blur('address')} error={shown('address')} maxLength={300} autoComplete="street-address" required
+                placeholder="Số nhà, tên đường"
+              />
+              {notDeliverable && (
+                <p className="co-alert co-alert--error co-fields__wide" role="alert">
+                  <AlertIcon size={18} /><span>{NOT_DELIVERABLE_MESSAGE}</span>
+                </p>
+              )}
               <Field
                 className="co-fields__wide" as="textarea" id="co-note" label="Ghi chú" optional value={form.note}
                 onChange={set('note')} maxLength={500} rows={2} placeholder="Ví dụ: giao giờ hành chính"
@@ -242,25 +273,47 @@ export default function Checkout() {
             <div><dt>Tạm tính</dt><dd className="tabular">{formatVnd(cart.subtotal)}</dd></div>
             <div>
               <dt>Phí vận chuyển</dt>
-              <dd>{form.province ? <Money value={shippingFee} /> : <span className="co-rows__hint">Chọn tỉnh/thành</span>}</dd>
+              <dd aria-busy={ship?.busy ? true : undefined}>
+                {ship ? (
+                  <>
+                    <span className={`co-fee ${ship.busy ? 'is-busy' : ''}`}>
+                      <Badge tone={ship.tone}>{ship.label}</Badge>
+                      <Money value={shippingFee} className="co-fee__amount" />
+                    </span>
+                    {(ship.note || ship.weightGrams) && (
+                      <span className="co-fee__note">
+                        {ship.note && <span>{ship.note}</span>}
+                        {formatWeight(ship.weightGrams) && <span>Khối lượng ước tính: {formatWeight(ship.weightGrams)}</span>}
+                      </span>
+                    )}
+                    <span className="sr-only" role="status">
+                      {ship.busy ? 'Đang tính phí vận chuyển' : `Phí vận chuyển ${formatVnd(shippingFee)}, ${ship.label}`}
+                    </span>
+                  </>
+                ) : <span className="co-rows__hint">Chọn tỉnh/thành</span>}
+              </dd>
             </div>
           </dl>
           <div className="co-total">
             <span>Tổng cộng</span>
-            <Money value={cart.subtotal + shippingFee} className="co-total__value" />
+            <Money value={orderTotal(cart.subtotal, shippingFee)} className="co-total__value" />
           </div>
           <Button
             type="submit"
             size="lg"
             block
             loading={busy}
-            disabled={hasUnavailable}
-            aria-describedby={hasUnavailable ? 'co-block-note' : undefined}
+            disabled={hasUnavailable || notDeliverable}
+            aria-describedby={hasUnavailable || notDeliverable ? 'co-block-note' : undefined}
             iconLeft={<LockIcon size={18} />}
           >
             {busy ? 'Đang xử lý...' : isMomo ? 'Thanh toán với MoMo' : 'Đặt hàng (COD)'}
           </Button>
-          {hasUnavailable && <p id="co-block-note" className="co-note">Hãy chỉnh lại giỏ hàng để tiếp tục.</p>}
+          {(hasUnavailable || notDeliverable) && (
+            <p id="co-block-note" className="co-note">
+              {hasUnavailable ? 'Hãy chỉnh lại giỏ hàng để tiếp tục.' : 'Hãy kiểm tra lại địa chỉ giao hàng để tiếp tục.'}
+            </p>
+          )}
           <p className="co-note">
             <ShieldIcon size={16} />
             <span>{isMomo ? 'Bạn sẽ được chuyển sang MoMo để hoàn tất thanh toán.' : 'Bạn thanh toán khi nhận hàng.'} Giá cuối cùng được máy chủ tính lại khi đặt hàng.</span>

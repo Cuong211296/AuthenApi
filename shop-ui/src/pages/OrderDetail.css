@@ -47,6 +47,7 @@
 .od-rows > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .od-rows dt { color: var(--muted); white-space: nowrap; }
 .od-rows dd { margin: 0; font-weight: 500; text-align: right; }
+.od-fee { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .od-rows--meta { padding-top: 16px; margin-top: 16px; border-top: 1px dashed var(--line); font-size: var(--fs-small); }
 .od-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .od-total strong { font-family: var(--font-display); font-size: 1.75rem; font-weight: 600; }

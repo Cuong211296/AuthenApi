@@ -7,10 +7,10 @@ import Switch from '../../components/ui/Switch.jsx';
 import { Skeleton } from '../../components/ui/Skeleton.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
 import { PlusIcon } from '../../components/ui/icons.jsx';
-import { costPriceError, costPriceValue, countError, editorSnapshot, isEditorDirty, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors } from '../../utils/admin.js';
+import { costPriceError, costPriceValue, countError, editorSnapshot, isEditorDirty, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors, weightGramsError, weightGramsValue } from '../../utils/admin.js';
 import { Thumb } from './AdminParts.jsx';
 
-const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', costPrice: '', imageUrl: '', active: true };
+const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', costPrice: '', weightGrams: '', imageUrl: '', active: true };
 const EMPTY_VARIANT = { size: '', color: '', sku: '', stock: '', price: '' };
 const KEEP_LABEL = { hide: 'Giữ lại', discard: 'Tiếp tục chỉnh sửa' };
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -30,6 +30,7 @@ const productBody = (p) => ({
   categoryId: p.categoryId ?? p.category?.id ?? '', // '' clears the category (the API treats blank as none)
   basePrice: Number(p.basePrice),
   costPrice: costPriceValue(p.costPrice), // empty -> null (cost unknown); admin only
+  weightGrams: weightGramsValue(p.weightGrams), // empty -> null (server default 300 g); a loaded weight is sent back unchanged
   imageUrl: p.imageUrl || '',
   active: p.active,
 });
@@ -43,6 +44,8 @@ function validateProduct(p) {
   if (price) errs.basePrice = price;
   const cost = costPriceError(p.costPrice);
   if (cost) errs.costPrice = cost;
+  const weight = weightGramsError(p.weightGrams);
+  if (weight) errs.weightGrams = weight;
   return errs;
 }
 
@@ -307,6 +310,18 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
                   onChange={setField('costPrice')}
                 />
               </div>
+              <Field
+                label="Cân nặng (g)"
+                optional
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="50000"
+                value={editing.weightGrams ?? ''}
+                error={errs.weightGrams}
+                hint="Để trống để dùng mặc định 300 g. Dùng để tính phí vận chuyển GHTK."
+                onChange={setField('weightGrams')}
+              />
               <div className="ad-imgrow">
                 <Field label="Link ảnh" optional value={editing.imageUrl || ''} onChange={setField('imageUrl')} placeholder="https://" autoComplete="off" />
                 <Thumb key={editing.imageUrl || 'none'} src={editing.imageUrl} name={editing.name} size={92} />

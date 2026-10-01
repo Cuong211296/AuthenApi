@@ -4,6 +4,7 @@ const base = {
   receiverName: ' Test A ',
   phone: ' 0901234567 ',
   email: ' a@b.com ',
+  ward: ' Phường 14 ',
   address: ' 339 Lê Văn Sỹ ',
   province: 'TP Hồ Chí Minh',
   note: '   ',
@@ -16,6 +17,7 @@ describe('normalizeCheckoutForm', () => {
     expect(out.receiverName).toBe('Test A');
     expect(out.phone).toBe('0901234567');
     expect(out.email).toBe('a@b.com');
+    expect(out.ward).toBe('Phường 14');
     expect(out.address).toBe('339 Lê Văn Sỹ');
   });
 
@@ -49,7 +51,7 @@ describe('isValidPhone', () => {
 });
 
 describe('checkoutErrors', () => {
-  const ok = { ...base, receiverName: 'A', phone: '0901234567', email: 'a@b.com', address: 'x', province: 'Hà Nội' };
+  const ok = { ...base, receiverName: 'A', phone: '0901234567', email: 'a@b.com', ward: 'P1', address: 'x', province: 'Hà Nội' };
 
   it('returns no errors for a valid form (values are trimmed first)', () => {
     expect(checkoutErrors(base)).toEqual({});
@@ -57,8 +59,13 @@ describe('checkoutErrors', () => {
   });
 
   it('flags every empty required field', () => {
-    const e = checkoutErrors({ ...ok, receiverName: ' ', phone: '', email: '', address: '  ', province: '' });
-    expect(Object.keys(e).sort()).toEqual(['address', 'email', 'phone', 'province', 'receiverName']);
+    const e = checkoutErrors({ ...ok, receiverName: ' ', phone: '', email: '', ward: ' ', address: '  ', province: '' });
+    expect(Object.keys(e).sort()).toEqual(['address', 'email', 'phone', 'province', 'receiverName', 'ward']);
+  });
+
+  it('requires the ward with a Vietnamese message', () => {
+    expect(checkoutErrors({ ...ok, ward: '   ' }).ward).toBe('Vui lòng nhập phường/xã');
+    expect(normalizeCheckoutForm({ ...ok, ward: undefined }).ward).toBe('');
   });
 
   it('distinguishes a missing phone from an invalid one', () => {

@@ -10,6 +10,7 @@ import { Skeleton } from '../components/ui/Skeleton.jsx';
 import { AlertIcon, ArrowIcon, CheckIcon, ClockIcon, PinIcon } from '../components/ui/icons.jsx';
 import { isOrderNotFound } from '../utils/orderErrors.js';
 import { formatVnd } from '../utils/money.js';
+import { shippingSourceLabel } from '../utils/shipping.js';
 import {
   ORDER_STATUS_LABEL, ORDER_STATUS_TONE, PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE,
 } from '../utils/labels.js';
@@ -96,6 +97,7 @@ export default function OrderDetail() {
     );
   }
 
+  const shipSource = shippingSourceLabel(order.shippingSource);
   const payable = order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'MOMO'
     && order.expiresAt && new Date(order.expiresAt) > new Date();
 
@@ -168,7 +170,10 @@ export default function OrderDetail() {
             <h2 id="od-total" className="od-card__title">Thanh toán</h2>
             <dl className="od-rows">
               <div><dt>Tạm tính</dt><dd className="tabular">{formatVnd(order.subtotal)}</dd></div>
-              <div><dt>Phí vận chuyển</dt><dd className="tabular">{formatVnd(order.shippingFee)}</dd></div>
+              <div><dt>Phí vận chuyển</dt><dd className="od-fee">
+                {shipSource && <Badge tone={shipSource.tone}>{shipSource.label}</Badge>}
+                <span className="tabular">{formatVnd(order.shippingFee)}</span>
+              </dd></div>
             </dl>
             <div className="od-total">
               <span>Tổng cộng</span>
@@ -188,7 +193,7 @@ export default function OrderDetail() {
             <address className="od-address">
               <strong>{order.receiverName}</strong>
               <span>{order.phone}</span>
-              <span>{order.address}, {order.province}</span>
+              <span>{[order.address, order.ward, order.province].filter(Boolean).join(', ')}</span>
             </address>
             {order.note && <p className="od-note">Ghi chú: {order.note}</p>}
           </section>

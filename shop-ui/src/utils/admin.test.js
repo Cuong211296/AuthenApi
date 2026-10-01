@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { costPriceError, costPriceValue, countBy, countError, editorSnapshot, filterProducts, isEditorDirty, filterRates, mergeVariants, optionalCountError, overrideOf, parseCount, slugify, variantErrors } from './admin.js';
+import { costPriceError, costPriceValue, countBy, countError, editorSnapshot, filterProducts, isEditorDirty, filterRates, mergeVariants, optionalCountError, overrideOf, parseCount, slugify, variantErrors, weightGramsError, weightGramsValue } from './admin.js';
 
 describe('filterProducts', () => {
   const items = [
@@ -144,5 +144,33 @@ describe('cost price (optional)', () => {
     expect(isEditorDirty(baseline, { ...base, costPrice: '60000' })).toBe(true);
     expect(isEditorDirty(editorSnapshot({ ...base, costPrice: 60000 }), { ...base, costPrice: '60000' })).toBe(false);
     expect(isEditorDirty(editorSnapshot({ ...base, costPrice: 60000 }), { ...base, costPrice: '' })).toBe(true);
+  });
+});
+
+describe('weight grams (optional)', () => {
+  it('maps empty to null and numbers to integers', () => {
+    expect(weightGramsValue('')).toBeNull();
+    expect(weightGramsValue(null)).toBeNull();
+    expect(weightGramsValue(undefined)).toBeNull();
+    expect(weightGramsValue(' 600 ')).toBe(600);
+    expect(weightGramsValue(300)).toBe(300);
+  });
+  it('accepts empty and 1..50000, rejects the rest', () => {
+    expect(weightGramsError('')).toBe('');
+    expect(weightGramsError('1')).toBe('');
+    expect(weightGramsError('50000')).toBe('');
+    expect(weightGramsError('0')).toMatch(/1 đến 50/);
+    expect(weightGramsError('50001')).not.toBe('');
+    expect(weightGramsError('1.5')).not.toBe('');
+    expect(weightGramsError('-3')).not.toBe('');
+    expect(weightGramsError('abc')).not.toBe('');
+  });
+  it('is part of the snapshot and dirty check (an absent weight reads as empty and an untouched one is not dirty)', () => {
+    const base = { name: 'A', slug: 'a', basePrice: 100, active: true, variants: [] };
+    expect(editorSnapshot(base).product.weightGrams).toBe('');
+    expect(isEditorDirty(editorSnapshot(base), { ...base })).toBe(false);
+    expect(isEditorDirty(editorSnapshot(base), { ...base, weightGrams: '450' })).toBe(true);
+    expect(isEditorDirty(editorSnapshot({ ...base, weightGrams: 450 }), { ...base, weightGrams: 450 })).toBe(false);
+    expect(isEditorDirty(editorSnapshot({ ...base, weightGrams: 450 }), { ...base, weightGrams: '' })).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ export function normalizeCheckoutForm(form) {
     receiverName: form.receiverName.trim(),
     phone: form.phone.replace(/[\s.-]/g, ''),
     email: form.email.trim(),
+    ward: (form.ward || '').trim(),
     address: form.address.trim(),
     note: note || null,
   };
@@ -36,6 +37,7 @@ export function checkoutErrors(form) {
   if (!v.email) errors.email = 'Vui lòng nhập email nhận xác nhận đơn';
   else if (!isValidEmail(v.email)) errors.email = 'Email không hợp lệ (ví dụ ten@example.com)';
   if (!v.province) errors.province = 'Hãy chọn tỉnh/thành';
+  if (!v.ward) errors.ward = 'Vui lòng nhập phường/xã';
   if (!v.address) errors.address = 'Vui lòng nhập địa chỉ giao hàng';
   return errors;
 }

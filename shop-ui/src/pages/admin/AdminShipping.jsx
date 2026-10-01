@@ -182,6 +182,7 @@ export default function AdminShipping() {
   return (
     <>
       <AdminPageHeader title="Phí vận chuyển" description="Phí giao hàng theo tỉnh/thành, áp dụng khi khách thanh toán." />
+      <p className="ad-muted" style={{ marginTop: -8, marginBottom: 16 }}>Bảng phí này là phí dự phòng khi GHTK không khả dụng hoặc chưa cấu hình.</p>
 
       <form className="ad-card ad-add" onSubmit={create} noValidate aria-label="Thêm tỉnh/thành">
         <Field

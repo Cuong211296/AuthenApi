@@ -48,6 +48,16 @@ export const costPriceValue = (value) => (String(value ?? '').trim() === '' ? nu
 /** Validation message for the optional cost price field ('' when empty or valid). */
 export const costPriceError = (value) => optionalCountError(value, 'Giá vốn');
 
+/** Optional shipping weight in grams (admin only): '' / null -> null (server default 300 g), otherwise the integer (invalid -> null; validate first). */
+export const weightGramsValue = (value) => (String(value ?? '').trim() === '' ? null : parseCount(value));
+
+/** Validation message for the optional weight field: empty is fine, otherwise a whole number 1..50000. */
+export function weightGramsError(value) {
+  if (String(value ?? '').trim() === '') return '';
+  const n = parseCount(value);
+  return n !== null && n >= 1 && n <= 50000 ? '' : 'Cân nặng phải là số nguyên từ 1 đến 50.000 g';
+}
+
 /** VariantResponse.price is the effective price: it is an override only when it differs from the base price. */
 export const overrideOf = (variant, basePrice) => (Number(variant.price) !== Number(basePrice) ? String(variant.price) : '');
 
@@ -76,7 +86,7 @@ export const countBy = (items, keyOf) => items.reduce((acc, item) => {
 /** URL slug from a name: diacritics removed, lower-case, words joined with dashes. */
 export const slugify = (s) => normalizeText(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-const PRODUCT_KEYS = ['name', 'slug', 'description', 'categoryId', 'basePrice', 'costPrice', 'imageUrl', 'active'];
+const PRODUCT_KEYS = ['name', 'slug', 'description', 'categoryId', 'basePrice', 'costPrice', 'weightGrams', 'imageUrl', 'active'];
 const str = (v) => (v === null || v === undefined ? '' : String(v));
 
 /** The user-editable parts of an editor state (product fields + per-variant stock/override/active), as plain strings. */

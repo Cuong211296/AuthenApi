@@ -10,6 +10,7 @@ import Tabs from '../../components/ui/Tabs.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
 import { AlertIcon, ChevronIcon, ReceiptIcon } from '../../components/ui/icons.jsx';
 import { formatVnd } from '../../utils/money.js';
+import { formatWeight, shippingSourceLabel } from '../../utils/shipping.js';
 import {
   NEXT_STATUSES, ORDER_ACTION_LABEL, ORDER_STATUS_LABEL, ORDER_STATUS_TONE,
   PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE,
@@ -27,6 +28,8 @@ const STATUS_TABS = [{ value: '', label: 'Tất cả' }, ...Object.entries(ORDER
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString('vi-VN') : '—');
 
 function OrderDetail({ order, id }) {
+  const source = shippingSourceLabel(order.shippingSource);
+  const weight = formatWeight(order.weightGrams);
   return (
     <tr className="ad-detail-row">
       <td colSpan={5}>
@@ -57,6 +60,7 @@ function OrderDetail({ order, id }) {
               <dt>Điện thoại</dt><dd>{order.phone}</dd>
               {order.email && (<><dt>Email</dt><dd>{order.email}</dd></>)}
               <dt>Địa chỉ</dt><dd>{order.address}</dd>
+              {order.ward && (<><dt>Phường/Xã</dt><dd>{order.ward}</dd></>)}
               <dt>Tỉnh/Thành</dt><dd>{order.province}</dd>
               {order.note && (<><dt>Ghi chú</dt><dd>{order.note}</dd></>)}
             </dl>
@@ -66,6 +70,8 @@ function OrderDetail({ order, id }) {
             <dl>
               <dt>Phương thức</dt><dd>{PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentMethod}</dd>
               <dt>Trạng thái</dt><dd>{PAYMENT_STATUS_LABEL[order.paymentStatus] || order.paymentStatus}</dd>
+              {source && (<><dt>Nguồn phí ship</dt><dd><Badge tone={source.tone}>{source.label}</Badge></dd></>)}
+              {weight && (<><dt>Khối lượng</dt><dd>{weight}</dd></>)}
               <dt>Đặt lúc</dt><dd>{fmtDate(order.createdAt)}</dd>
               {order.paidAt && (<><dt>Đã trả lúc</dt><dd>{fmtDate(order.paidAt)}</dd></>)}
               {order.expiresAt && order.paymentStatus === 'UNPAID' && (<><dt>Hết hạn</dt><dd>{fmtDate(order.expiresAt)}</dd></>)}

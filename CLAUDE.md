@@ -156,6 +156,8 @@ Design: `docs/superpowers/specs/2026-09-30-clothing-shop-design.md` (see its sec
 
 **Environment variables (`.env`):** `ADMIN_PASSWORD`, `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY` (optional `MOMO_ENDPOINT`, `MOMO_REQUEST_TYPE`, `MOMO_IPN_URL`), `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `FRONTEND_URL`. The app refuses to start without `JWT_SIGNER_KEY`, `DB_PASSWORD` and `ADMIN_PASSWORD`.
 
+**GHTK shipping fee:** `POST /shipping/quote` (authenticated; body `{province, ward, address}`; prices the caller's server-side cart) returns `{fee, source: GHTK|TABLE, estimated, weightGrams, deliverable, message}`; checkout calls the same quote service and requires `ward`. Env vars: `GHTK_TOKEN`, `GHTK_CLIENT_SOURCE`, `GHTK_BASE_URL`, `GHTK_PICK_PROVINCE`, `GHTK_PICK_WARD`, optional `GHTK_PICK_DISTRICT`, `GHTK_PICK_ADDRESS`, `GHTK_TRANSPORT`. GHTK is enabled only when token, client source, pick province and pick ward are all set; otherwise, and whenever GHTK fails, the fixed per-province table (`/admin/shipping-rates`) is used (`source: TABLE`, `estimated: true`). Product weight (`weightGrams`, 1..50000, default 300 g) is editable in the admin product editor.
+
 **Tests:** run on H2, so `mvn test` needs no MySQL (use `mvn -q clean test`).
 
 **Existing databases:** run `migration_v3_roles_backfill.sql` via `python scripts/dbtool.py run` (after a backup) so existing users get role USER.
