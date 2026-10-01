@@ -1,11 +1,12 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { BRAND } from '../../components/layout/brand.js';
-import { BoxIcon, ChartIcon, ReceiptIcon, StoreIcon, TruckIcon } from '../../components/ui/icons.jsx';
+import { BoxIcon, ChartIcon, CogIcon, ReceiptIcon, StoreIcon, TruckIcon } from '../../components/ui/icons.jsx';
 import { SPRING } from '../../motion/variants.js';
 import AdminOrders from './AdminOrders.jsx';
 import AdminOverview from './AdminOverview.jsx';
 import AdminProducts from './AdminProducts.jsx';
+import AdminSettings from './AdminSettings.jsx';
 import AdminShipping from './AdminShipping.jsx';
 import './Admin.css';
 
@@ -14,6 +15,7 @@ const NAV = [
   { to: '/admin/products', label: 'Sản phẩm', Icon: BoxIcon },
   { to: '/admin/orders', label: 'Đơn hàng', Icon: ReceiptIcon },
   { to: '/admin/shipping', label: 'Phí vận chuyển', Icon: TruckIcon },
+  { to: '/admin/settings', label: 'Cài đặt cửa hàng', Icon: CogIcon },
 ];
 
 export default function AdminLayout() {
@@ -58,6 +60,7 @@ export default function AdminLayout() {
           <Route path="products" element={<AdminProducts />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="shipping" element={<AdminShipping />} />
+          <Route path="settings" element={<AdminSettings />} />
           <Route path="*" element={<Navigate to="overview" replace />} />
         </Routes>
       </div>

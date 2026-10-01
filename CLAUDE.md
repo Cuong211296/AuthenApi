@@ -164,6 +164,8 @@ Design: `docs/superpowers/specs/2026-09-30-clothing-shop-design.md` (see its sec
 
 **Existing databases:** run `migration_v3_roles_backfill.sql` via `python scripts/dbtool.py run` (after a backup) so existing users get role USER.
 
+**Shop settings (pickup address):** admin page `/admin/settings` ("Cài đặt cửa hàng", `shop-ui/src/pages/admin/AdminSettings.jsx`, helpers in `utils/settings.js`) edits the shop name, phone and pickup address, stored in DB table `shop_settings` (single row). Endpoints: `GET/PUT /admin/settings/shop` (ADMIN). The pickup drives GHN/GHTK quotes with precedence settings > env (`GHN_FROM_DISTRICT_ID`, `GHTK_PICK_*`) > carrier default, and takes effect immediately for new quotes. In `GHN_IDS` mode the PUT carries ids (provinceId, districtId, wardCode); in `TEXT` mode it carries names only (the backend rejects ids). Design: `docs/superpowers/specs/2026-10-01-shop-settings-design.md`.
+
 ## Admin statistics
 
 `GET /admin/stats/overview?from=&to=&groupBy=day|month|year` (ADMIN only, dates in `Asia/Ho_Chi_Minh`, defaults to the last 30 days) returns KPIs with their previous-period values, a zero-filled series, status/payment breakdowns, top products and low stock. Revenue = sum of item subtotal (shipping excluded) of orders that are PAID and not CANCELLED, dated by `paidAt`; orders and cancel rate are by `createdAt`; gross profit uses only items with a known cost and comes with a coverage ratio (null when no item has a cost). The page is the first admin screen, "Tổng quan" at `/admin/overview` (`/admin` redirects there): `shop-ui/src/pages/admin/AdminOverview.jsx` with parts in `pages/admin/overview/`, helpers in `utils/stats.js`, charts in `components/charts/` (inline SVG, no chart library). Cost price: the optional "Giá vốn (tuỳ chọn)" field of the admin product editor (`costPrice`, empty = null, never exposed on storefront endpoints); checkout snapshots it into `OrderItem.unitCost`.
@@ -186,7 +188,7 @@ React + Vite SPA for the clothing shop storefront and admin area (supersedes `lo
 - Storefront: `/` (browse products), `/products/:slug` (detail), `/cart`, `/checkout`
 - Authentication: `/login`, `/signup`
 - Orders: `/payment/result`, `/orders` (list), `/orders/:code` (detail)
-- Admin: `/admin/products`, `/admin/orders`, `/admin/shipping`
+- Admin: `/admin/products`, `/admin/orders`, `/admin/shipping`, `/admin/settings`
 
 **Auth:** JWT stored in `localStorage` under `auth_token`; client proactively refreshes when near expiry. For production, use httpOnly cookies (`Set-Cookie: auth_token=...; HttpOnly; Secure; SameSite=Strict`) and Content-Security-Policy headers.
 
