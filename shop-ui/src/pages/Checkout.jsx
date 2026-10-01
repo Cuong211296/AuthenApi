@@ -23,6 +23,7 @@ import ProgressSteps from '../components/ui/ProgressSteps.jsx';
 import RadioCards from '../components/ui/RadioCards.jsx';
 import { Skeleton } from '../components/ui/Skeleton.jsx';
 import { AlertIcon, ArrowIcon, BagIcon, CashIcon, LockIcon, ShieldIcon } from '../components/ui/icons.jsx';
+import { optimizeImageUrl } from '../utils/image.js';
 import './Checkout.css';
 
 const PAYMENT_OPTIONS = [
@@ -92,7 +93,7 @@ function Thumb({ item }) {
   return (
     <span className="co-thumb" aria-hidden="true">
       {item.imageUrl && !failed
-        ? <img src={item.imageUrl} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
+        ? <img src={optimizeImageUrl(item.imageUrl, 160)} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
         : <span className="co-thumb__fallback">{item.productName.slice(0, 1)}</span>}
       <span className="co-thumb__qty tabular">{item.quantity}</span>
     </span>

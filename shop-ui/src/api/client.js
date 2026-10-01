@@ -41,14 +41,16 @@ export function secondsLeft(token, nowMs = Date.now()) {
 }
 
 async function send(method, path, body, token) {
-  const headers = { 'Content-Type': 'application/json' };
+  // FormData bodies must go out without a Content-Type so the browser adds the multipart boundary.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  const headers = isForm ? {} : { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   let res;
   try {
     res = await fetch(BASE + path, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError('Không kết nối được máy chủ', -1, 0);
@@ -93,4 +95,13 @@ export async function api(method, path, body, { auth = true } = {}) {
     }
     throw e;
   }
+}
+
+/** Uploads a product image (admin). Resolves to the https URL of the stored image. */
+export async function uploadProductImage(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const result = await api('POST', '/admin/uploads/image', form);
+  if (!result?.url) throw new ApiError('Tải ảnh lên thất bại, vui lòng thử lại', -1, 0);
+  return result.url;
 }

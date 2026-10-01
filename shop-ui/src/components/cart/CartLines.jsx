@@ -5,6 +5,7 @@ import Badge from '../ui/Badge.jsx';
 import Stepper from '../ui/Stepper.jsx';
 import { CloseIcon } from '../ui/icons.jsx';
 import { formatVnd } from '../../utils/money.js';
+import { optimizeImageUrl } from '../../utils/image.js';
 import { maxQuantityFor } from '../../utils/quantity.js';
 import { EASE } from '../../motion/variants.js';
 import './CartLines.css';
@@ -14,7 +15,7 @@ function Thumb({ item }) {
   return (
     <Link to={`/products/${item.productSlug}`} className="cl__thumb" tabIndex={-1} aria-hidden="true">
       {item.imageUrl && !failed
-        ? <img src={item.imageUrl} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
+        ? <img src={optimizeImageUrl(item.imageUrl, 200)} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
         : <span className="cl__thumb-fallback">{item.productName.slice(0, 1)}</span>}
     </Link>
   );

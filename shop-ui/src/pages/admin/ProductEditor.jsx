@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../api/client.js';
+import { api, uploadProductImage } from '../../api/client.js';
 import Button from '../../components/ui/Button.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import Field from '../../components/ui/Field.jsx';
 import Switch from '../../components/ui/Switch.jsx';
 import { Skeleton } from '../../components/ui/Skeleton.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
-import { PlusIcon } from '../../components/ui/icons.jsx';
+import { PlusIcon, UploadIcon } from '../../components/ui/icons.jsx';
 import { costPriceError, costPriceValue, countError, editorSnapshot, isEditorDirty, mergeVariants, optionalCountError, overrideOf, slugify, variantErrors, weightGramsError, weightGramsValue } from '../../utils/admin.js';
+import { imageFileError } from '../../utils/image.js';
 import { Thumb } from './AdminParts.jsx';
 
 const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', costPrice: '', weightGrams: '', imageUrl: '', active: true };
@@ -78,6 +79,12 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
   const [varError, setVarError] = useState('');
   const bodyRef = useRef(null);
   const [attempt, setAttempt] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []); // StrictMode remounts effects
 
   useEffect(() => {
     if (!target.id) return undefined;
@@ -93,6 +100,34 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
   const patchVariant = (id, patch) => {
     setEditing((p) => ({ ...p, variants: p.variants.map((v) => (v.id === id ? { ...v, ...patch } : v)) }));
     setVarErrs((m) => ({ ...m, [id]: undefined }));
+  };
+
+  // Uploads one image, then stores the returned URL in the existing imageUrl field (so the dirty guard sees it).
+  async function handleFile(file) {
+    if (!file || uploading) return;
+    const problem = imageFileError(file);
+    setUploadError(problem);
+    if (problem) return;
+    setUploading(true);
+    try {
+      const url = await uploadProductImage(file);
+      if (mounted.current) setEditing((p) => ({ ...p, imageUrl: url }));
+    } catch (err) {
+      if (mounted.current) setUploadError(err.message || 'Tải ảnh lên thất bại, vui lòng thử lại');
+    } finally {
+      if (mounted.current) setUploading(false);
+    }
+  }
+
+  const onPick = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // lets the same file be picked again after an error
+    handleFile(file);
+  };
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    handleFile(e.dataTransfer?.files?.[0]);
   };
 
   async function saveProduct(e) {
@@ -325,6 +360,36 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
               <div className="ad-imgrow">
                 <Field label="Link ảnh" optional value={editing.imageUrl || ''} onChange={setField('imageUrl')} placeholder="https://" autoComplete="off" />
                 <Thumb key={editing.imageUrl || 'none'} src={editing.imageUrl} name={editing.name} size={92} />
+              </div>
+              <div
+                className={`ad-upload ${dragging ? 'is-drag' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); if (!dragging) setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+              >
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-label="Chọn ảnh sản phẩm"
+                  data-testid="image-file"
+                  onChange={onPick}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconLeft={<UploadIcon size={16} />}
+                  loading={uploading}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Tải ảnh lên
+                </Button>
+                <span className="ad-upload__hint" role="status">
+                  {uploading ? 'Đang tải ảnh lên…' : 'hoặc kéo thả ảnh vào đây. JPEG, PNG, WebP, tối đa 5 MB.'}
+                </span>
+                {uploadError && <p className="ad-error ad-upload__err" role="alert">{uploadError}</p>}
               </div>
               <Field as="textarea" label="Mô tả" optional rows={3} value={editing.description || ''} onChange={setField('description')} />
               <div className="ad-activebox">

@@ -33,6 +33,9 @@ export const SearchIcon = (p) => (
 export const CloseIcon = (p) => (
   <Icon {...p}><path d="M6 6l12 12M18 6 6 18" /></Icon>
 );
+export const UploadIcon = (p) => (
+  <Icon {...p}><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></Icon>
+);
 export const PlusIcon = (p) => (
   <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>
 );

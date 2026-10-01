@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatVnd } from '../utils/money.js';
+import { optimizeImageUrl } from '../utils/image.js';
 import { initialsOf } from '../utils/initials.js';
 import { ArrowIcon } from './ui/icons.jsx';
 import './ProductCard.css';
@@ -14,7 +15,7 @@ function ProductCard({ product, eager = false }) {
         <div className="pc__media">
           {showImage ? (
             <img
-              src={product.imageUrl}
+              src={optimizeImageUrl(product.imageUrl, 640)}
               alt=""
               loading={eager ? 'eager' : 'lazy'}
               decoding="async"

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CloseIcon, SearchIcon } from '../../components/ui/icons.jsx';
 import { Skeleton } from '../../components/ui/Skeleton.jsx';
+import { optimizeImageUrl } from '../../utils/image.js';
 import { initialsOf } from '../../utils/initials.js';
 
 /** Square product image with a gradient + initials fallback when there is no image or it fails to load. */
@@ -9,7 +10,7 @@ export function Thumb({ src, name, size = 48 }) {
   const showImage = src && !failed;
   return (
     <span className="ad-thumb" style={{ '--thumb': `${size}px` }}>
-      {showImage ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} /> : <span aria-hidden="true">{initialsOf(name) || '·'}</span>}
+      {showImage ? <img src={optimizeImageUrl(src, Math.max(96, size * 2))} alt="" loading="lazy" onError={() => setFailed(true)} /> : <span aria-hidden="true">{initialsOf(name) || '·'}</span>}
     </span>
   );
 }

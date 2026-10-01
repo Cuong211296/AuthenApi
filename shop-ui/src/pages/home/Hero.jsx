@@ -6,6 +6,7 @@ import { formatVnd } from '../../utils/money.js';
 import Button from '../../components/ui/Button.jsx';
 import { ArrowIcon, RefreshIcon, ShieldIcon, TruckIcon } from '../../components/ui/icons.jsx';
 import { EASE, fadeUp, stagger } from '../../motion/variants.js';
+import { optimizeImageUrl } from '../../utils/image.js';
 
 const HEADLINE = [
   [{ t: 'Phong' }, { t: 'cách' }],
@@ -55,10 +56,10 @@ function HeroArt() {
     >
       <span className="hero__ring" aria-hidden="true" />
       <motion.div className="hero__card hero__card--main" {...float(0)}>
-        {main ? <img src={main.imageUrl} alt={main.name} fetchpriority="high" /> : <span className="hero__card-fill" aria-hidden="true" />}
+        {main ? <img src={optimizeImageUrl(main.imageUrl, 900)} alt={main.name} fetchpriority="high" /> : <span className="hero__card-fill" aria-hidden="true" />}
       </motion.div>
       <motion.div className="hero__card hero__card--side" {...float(1.2)}>
-        {side ? <img src={side.imageUrl} alt={side.name} /> : <span className="hero__card-fill hero__card-fill--alt" aria-hidden="true" />}
+        {side ? <img src={optimizeImageUrl(side.imageUrl, 600)} alt={side.name} /> : <span className="hero__card-fill hero__card-fill--alt" aria-hidden="true" />}
       </motion.div>
       {main && (
         <Link to={`/products/${main.slug}`} className="hero__tag">

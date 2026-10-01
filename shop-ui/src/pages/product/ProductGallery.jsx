@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal.jsx';
+import { optimizeImageUrl } from '../../utils/image.js';
 import { initialsOf } from '../../utils/initials.js';
 
 /**
@@ -40,11 +41,11 @@ export default function ProductGallery({ src, name }) {
         onPointerMove={pan}
         onClick={() => setOpen(true)}
       >
-        <img src={src} alt={name} decoding="async" fetchpriority="high" onError={() => setFailed(true)} />
+        <img src={optimizeImageUrl(src, 1200)} alt={name} decoding="async" fetchpriority="high" onError={() => setFailed(true)} />
         <span className="pg__hint" aria-hidden="true">Nhấn để phóng to</span>
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title={name} hideTitle variant="media">
-        <img src={src} alt={name} />
+        <img src={optimizeImageUrl(src, 1600)} alt={name} />
       </Modal>
     </>
   );

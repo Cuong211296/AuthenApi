@@ -34,7 +34,11 @@ public enum ErrorCode {
     PROVINCE_EXISTED(2016, "Province already exists", HttpStatus.BAD_REQUEST),
     VARIANT_EXISTED(2017, "Variant with this size and colour already exists", HttpStatus.BAD_REQUEST),
     SHIPPING_NOT_AVAILABLE(2018, "Địa chỉ này chưa hỗ trợ giao hàng", HttpStatus.BAD_REQUEST),
-    SHIPPING_PROVIDER_UNAVAILABLE(2019, "Dịch vụ địa chỉ tạm thời không khả dụng", HttpStatus.BAD_GATEWAY);
+    SHIPPING_PROVIDER_UNAVAILABLE(2019, "Dịch vụ địa chỉ tạm thời không khả dụng", HttpStatus.BAD_GATEWAY),
+    IMAGE_UPLOAD_DISABLED(2020, "Tính năng tải ảnh lên chưa được cấu hình", HttpStatus.SERVICE_UNAVAILABLE),
+    IMAGE_INVALID_TYPE(2021, "Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP", HttpStatus.BAD_REQUEST),
+    IMAGE_TOO_LARGE(2022, "Ảnh vượt quá dung lượng tối đa 5 MB", HttpStatus.PAYLOAD_TOO_LARGE),
+    IMAGE_UPLOAD_FAILED(2023, "Tải ảnh lên thất bại, vui lòng thử lại", HttpStatus.BAD_GATEWAY);
 
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
