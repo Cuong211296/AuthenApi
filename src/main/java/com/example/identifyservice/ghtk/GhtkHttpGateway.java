@@ -2,16 +2,20 @@ package com.example.identifyservice.ghtk;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@Component
+/** Registered as a bean in {@link GhtkConfig}, which gives it a RestClient with GHTK-specific timeouts. */
 @Slf4j
 public class GhtkHttpGateway implements GhtkGateway {
+    public static final int CONNECT_TIMEOUT_MS = 3_000;
+    public static final int READ_TIMEOUT_MS = 5_000;
+
     private final GhtkProperties props;
     private final RestClient restClient;
 
@@ -20,6 +24,14 @@ public class GhtkHttpGateway implements GhtkGateway {
         this.restClient = builder
                 .baseUrl(GhtkProperties.blank(props.baseUrl()) ? "https://services.giaohangtietkiem.vn" : props.baseUrl())
                 .build();
+    }
+
+    /** Request factory with the short GHTK timeouts (not the global ones). */
+    public static SimpleClientHttpRequestFactory timeoutRequestFactory() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        factory.setReadTimeout(READ_TIMEOUT_MS);
+        return factory;
     }
 
     @Override
@@ -53,8 +65,9 @@ public class GhtkHttpGateway implements GhtkGateway {
         } catch (GhtkUnavailableException e) {
             throw e;
         } catch (RuntimeException e) {
-            // never log the request (it carries the token header); only the failure type and its message
-            log.warn("GHTK fee call failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            // Never log the message: it can contain the request URL (customer address). Class name and status only.
+            String detail = e instanceof RestClientResponseException r ? " (HTTP " + r.getStatusCode().value() + ")" : "";
+            log.warn("GHTK fee call failed: {}{}", e.getClass().getSimpleName(), detail);
             throw new GhtkUnavailableException("GHTK fee call failed: " + e.getClass().getSimpleName(), e);
         }
     }
@@ -74,8 +87,8 @@ public class GhtkHttpGateway implements GhtkGateway {
         if (!fee.isObject() || !fee.path("delivery").isBoolean())
             throw new GhtkUnavailableException("GHTK answered without fee details");
         if (!fee.get("delivery").asBoolean()) return new GhtkFeeResult(true, false, 0, message);
-        if (!fee.path("fee").isIntegralNumber())
-            throw new GhtkUnavailableException("GHTK answered without a fee amount");
+        if (!fee.path("fee").isIntegralNumber() || fee.get("fee").asLong() < 0)
+            throw new GhtkUnavailableException("GHTK answered without a valid fee amount");
         return new GhtkFeeResult(true, true, fee.get("fee").asLong(), message);
     }
 }

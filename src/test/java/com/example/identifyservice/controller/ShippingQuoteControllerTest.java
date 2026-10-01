@@ -38,6 +38,12 @@ class ShippingQuoteControllerTest {
     @Autowired FakeGhtkGateway ghtk;
     @Autowired ShippingQuoteService quoteService;
 
+    @org.junit.jupiter.api.AfterEach
+    void resetGhtk() {
+        ghtk.reset();
+        quoteService.clearCache();
+    }
+
     @BeforeEach
     void setUp() {
         ghtk.reset();
@@ -99,6 +105,8 @@ class ShippingQuoteControllerTest {
     @Test
     void invalidBodiesAreRejected() throws Exception {
         call("{\"province\":\"\",\"ward\":\"P\",\"address\":\"a\"}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+        call("{\"province\":\"" + "p".repeat(101) + "\",\"ward\":\"P\",\"address\":\"a\"}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1011));
         call("{\"province\":\"Hà Nội\",\"ward\":\" \",\"address\":\"a\"}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1011));

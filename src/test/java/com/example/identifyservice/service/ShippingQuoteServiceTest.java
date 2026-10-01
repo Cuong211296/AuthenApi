@@ -11,7 +11,6 @@ import com.example.identifyservice.exception.ErrorCode;
 import com.example.identifyservice.ghtk.GhtkFeeResult;
 import com.example.identifyservice.ghtk.GhtkProperties;
 import com.example.identifyservice.ghtk.GhtkUnavailableException;
-import com.example.identifyservice.repository.CartRepository;
 import com.example.identifyservice.testsupport.FakeGhtkGateway;
 import com.example.identifyservice.testsupport.MutableClock;
 import com.example.identifyservice.testsupport.TestDataFactory;
@@ -40,14 +39,18 @@ class ShippingQuoteServiceTest {
 
     @Autowired FakeGhtkGateway ghtk;
     @Autowired ShippingService shipping;
-    @Autowired CartRepository carts;
-    @Autowired CurrentUserService currentUser;
+    @Autowired CartMeasurer measurer;
     @Autowired TestDataFactory data;
 
     MutableClock clock;
     ShippingQuoteService service;
     ProductVariant tee;     // default weight 300, price 200.000
     ProductVariant hoodie;  // weight 700, base price 500.000, variant price 450.000
+
+    @org.junit.jupiter.api.AfterEach
+    void resetGhtk() {
+        ghtk.reset();
+    }
 
     @BeforeEach
     void setUp() {
@@ -62,7 +65,7 @@ class ShippingQuoteServiceTest {
     }
 
     private ShippingQuoteService serviceWith(GhtkProperties props) {
-        return new ShippingQuoteService(ghtk, props, shipping, clock, carts, currentUser);
+        return new ShippingQuoteService(ghtk, props, shipping, clock, measurer);
     }
 
     private Cart cart(Object... variantAndQty) {
@@ -108,6 +111,7 @@ class ShippingQuoteServiceTest {
         assertThat(quote(c, "Hà Nội")).isEqualTo(
                 new ShippingQuote(25_000, ShippingSource.TABLE, true, 300, true, TABLE_MESSAGE_DOWN));
 
+        clock.advance(Duration.ofSeconds(61));                    // let the circuit breaker close again
         ghtk.fail(new IllegalStateException("boom"));
         assertThat(quote(c, "Hà Nội")).isEqualTo(
                 new ShippingQuote(25_000, ShippingSource.TABLE, true, 300, true, TABLE_MESSAGE_DOWN));
@@ -142,9 +146,86 @@ class ShippingQuoteServiceTest {
         Cart c = cart(tee, 1);
         ghtk.fail(new GhtkUnavailableException("down"));
         assertThat(quote(c, "Hà Nội").source()).isEqualTo(ShippingSource.TABLE);
+        clock.advance(Duration.ofSeconds(61));                    // breaker window over
         ghtk.returnFee(31_000);
         assertThat(quote(c, "Hà Nội").source()).isEqualTo(ShippingSource.GHTK);
         assertThat(ghtk.calls).hasSize(2);
+    }
+
+    @Test
+    void outageOpensAGlobalBreakerThatSkipsGhtkForSixtySecondsThenProbesAgain() {
+        Cart c = cart(tee, 1);
+        ghtk.fail(new GhtkUnavailableException("down"));
+        assertThat(quote(c, "Hà Nội").message()).isEqualTo(TABLE_MESSAGE_DOWN);
+        assertThat(ghtk.calls).hasSize(1);
+
+        // other keys (different address, weight) are skipped too: the breaker is global, not per key
+        for (int i = 0; i < 5; i++) {
+            ShippingQuote q = service.quote(cart(tee, i + 1), "Hà Nội", "Phường X", "addr " + i);
+            assertThat(q.source()).isEqualTo(ShippingSource.TABLE);
+            assertThat(q.message()).isEqualTo(TABLE_MESSAGE_DOWN);
+        }
+        assertThat(ghtk.calls).hasSize(1);
+
+        clock.advance(Duration.ofSeconds(59));
+        quote(c, "Hà Nội");
+        assertThat(ghtk.calls).hasSize(1);
+
+        clock.advance(Duration.ofSeconds(2));                     // window over: one probe, still failing
+        assertThat(quote(c, "Hà Nội").message()).isEqualTo(TABLE_MESSAGE_DOWN);
+        assertThat(ghtk.calls).hasSize(2);
+        quote(c, "Hà Nội");                                       // re-opened for another 60 s
+        assertThat(ghtk.calls).hasSize(2);
+
+        clock.advance(Duration.ofSeconds(61));
+        ghtk.returnFee(31_000);                                   // probe succeeds: breaker closes
+        assertThat(quote(c, "Hà Nội").source()).isEqualTo(ShippingSource.GHTK);
+        ghtk.fail(new GhtkUnavailableException("down again"));
+        service.quote(cart(tee, 3), "Hà Nội", "Phường Y", "other");   // closed -> goes straight to GHTK again
+        assertThat(ghtk.calls).hasSize(4);
+    }
+
+    @Test
+    void cleanRefusalsDoNotOpenTheBreaker() {
+        Cart c = cart(tee, 1);
+        ghtk.returnResult(new GhtkFeeResult(true, false, 0, null));
+        quote(c, "Hà Nội");
+        quote(c, "Hà Nội");
+        ghtk.returnResult(new GhtkFeeResult(false, false, 0, "bad"));
+        quote(c, "Hà Nội");
+        assertThat(ghtk.calls).hasSize(3);
+    }
+
+    @Test
+    void onlyOneProbeRunsAfterTheWindowEvenWhenCallersRace() throws Exception {
+        Cart c = cart(tee, 1);
+        ghtk.fail(new GhtkUnavailableException("down"));
+        quote(c, "Hà Nội");
+        clock.advance(Duration.ofSeconds(61));
+
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        ghtk.handler = r -> {
+            entered.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                throw new GhtkUnavailableException("interrupted");
+            }
+            throw new GhtkUnavailableException("still down");
+        };
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(1);
+        try {
+            var probe = pool.submit(() -> service.quote(cart(tee, 1), "Hà Nội", "Phường Z", "slow"));
+            entered.await();
+            // probe in flight: every other caller is answered from the table without calling GHTK
+            for (int i = 0; i < 5; i++) quote(c, "Hà Nội");
+            assertThat(ghtk.calls).hasSize(2);
+            release.countDown();
+            assertThat(probe.get().message()).isEqualTo(TABLE_MESSAGE_DOWN);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

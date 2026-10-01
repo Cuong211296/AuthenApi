@@ -134,6 +134,25 @@ class GhtkHttpGatewayTest {
     }
 
     @Test
+    void negativeFeeIsUnavailableButZeroFreeShippingIsAccepted() {
+        server.expect(r -> {}).andRespond(withSuccess("{\"success\":true,\"fee\":{\"fee\":-5,\"delivery\":true}}",
+                MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> gateway.calculateFee(REQUEST)).isInstanceOf(GhtkUnavailableException.class);
+
+        server.reset();
+        server.expect(r -> {}).andRespond(withSuccess("{\"success\":true,\"fee\":{\"fee\":0,\"delivery\":true}}",
+                MediaType.APPLICATION_JSON));
+        assertThat(gateway.calculateFee(REQUEST)).isEqualTo(new GhtkFeeResult(true, true, 0, null));
+    }
+
+    @Test
+    void dedicatedRequestFactoryUsesTheShortGhtkTimeouts() {
+        var factory = GhtkHttpGateway.timeoutRequestFactory();
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(factory, "connectTimeout")).isEqualTo(3_000);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(factory, "readTimeout")).isEqualTo(5_000);
+    }
+
+    @Test
     void propertiesEnabledOnlyWhenAllRequiredFieldsAreSet() {
         assertThat(PROPS.isEnabled()).isTrue();
         assertThat(new GhtkProperties("", "SRC", "u", "p", "w", null, null, "road").isEnabled()).isFalse();

@@ -62,6 +62,8 @@ class OrderServiceTest {
 
     @AfterEach
     void clearContext() {
+        ghtk.reset();
+        quoteService.clearCache();
         SecurityContextHolder.clearContext();
     }
 

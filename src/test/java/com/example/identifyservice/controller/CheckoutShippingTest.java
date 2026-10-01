@@ -36,6 +36,12 @@ class CheckoutShippingTest {
     @Autowired FakeGhtkGateway ghtk;
     @Autowired ShippingQuoteService quoteService;
 
+    @org.junit.jupiter.api.AfterEach
+    void resetGhtk() {
+        ghtk.reset();
+        quoteService.clearCache();
+    }
+
     @BeforeEach
     void setUp() {
         ghtk.reset();
