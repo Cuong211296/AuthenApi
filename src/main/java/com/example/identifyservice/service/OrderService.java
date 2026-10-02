@@ -58,10 +58,11 @@ public class OrderService {
         Cart cart = cartRepository.findByUser(user).orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY));
         if (cart.getItems().isEmpty()) throw new AppException(ErrorCode.CART_EMPTY);
         // The address is validated and, in GHN id mode, its names are resolved from GHN master data (never the
-        // client's names). Shipping is then computed server-side only (GHN, GHTK, else the table) and before any
+        // client's names). Shipping is then computed server-side only (the customer's chosen carrier, else the cheaper of
+        // GHN and GHTK, else the table) and before any
         // stock is touched. Neither call throws through a transactional proxy.
         QuoteAddress resolved = shippingQuoteService.resolveAddress(request.toAddress());
-        ShippingQuote quote = shippingQuoteService.quoteResolved(CartMeasure.of(cart), resolved);
+        ShippingQuote quote = shippingQuoteService.quoteForCarrier(CartMeasure.of(cart), resolved, request.shippingCarrier());
         if (!quote.deliverable()) throw new AppException(ErrorCode.SHIPPING_NOT_AVAILABLE);
         String province;
         String ward = resolved.wardName().trim();

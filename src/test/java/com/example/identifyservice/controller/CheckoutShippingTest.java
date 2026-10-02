@@ -83,4 +83,13 @@ class CheckoutShippingTest {
 
         checkout("Atlantis", "").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(2018));
     }
+
+    @Test
+    void unknownOrTableCarrierIsInvalidInput() throws Exception {
+        cartWith("carrier-tee3");
+        checkout("Hà Nội", ",\"carrier\":\"TABLE\"").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+        checkout("Hà Nội", ",\"carrier\":\"FOO\"").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
+    }
 }

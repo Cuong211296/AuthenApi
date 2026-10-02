@@ -36,7 +36,7 @@ public class ShippingController {
     @PostMapping("/shipping/quote")
     ApiResponse<ShippingQuoteResponse> quote(@RequestBody @Valid ShippingQuoteRequest request) {
         return ApiResponse.ok(ShippingQuoteResponse.from(
-                shippingQuoteService.quoteCurrentCart(request.toAddress())));
+                shippingQuoteService.quoteOptionsForCurrentCart(request.toAddress())));
     }
 
     /** Public: which carrier serves quotes and whether the checkout uses GHN id selects or text address fields. */

@@ -5,6 +5,7 @@ import com.example.identifyservice.entity.CartItem;
 import com.example.identifyservice.entity.ProductVariant;
 import com.example.identifyservice.repository.CartRepository;
 import com.example.identifyservice.service.ShippingQuoteService;
+import com.example.identifyservice.testsupport.FakeGhnGateway;
 import com.example.identifyservice.testsupport.FakeGhtkGateway;
 import com.example.identifyservice.testsupport.TestDataFactory;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,23 +31,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Transactional
 class ShippingQuoteControllerTest {
+    static final String IDS_BODY = "{\"provinceId\":202,\"districtId\":1442,\"wardCode\":\"20308\",\"address\":\"12 Nguyen Hue\"}";
     static final String BODY = "{\"province\":\"Hà Nội\",\"ward\":\"Phường Bến Nghé\",\"address\":\"12 Nguyen Hue\"}";
 
     @Autowired MockMvc mvc;
     @Autowired TestDataFactory data;
     @Autowired CartRepository carts;
     @Autowired FakeGhtkGateway ghtk;
+    @Autowired FakeGhnGateway ghn;
     @Autowired ShippingQuoteService quoteService;
 
     @org.junit.jupiter.api.AfterEach
     void resetGhtk() {
         ghtk.reset();
+        ghn.reset();
         quoteService.clearCache();
     }
 
     @BeforeEach
     void setUp() {
         ghtk.reset();
+        ghn.reset();
         quoteService.clearCache();
         data.user("quoter");
     }
@@ -114,5 +119,36 @@ class ShippingQuoteControllerTest {
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(1011));
         call("{\"province\":\"Hà Nội\",\"ward\":\"P\",\"address\":\"" + "a".repeat(301) + "\"}")
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(1011));
+    }
+
+    @Test
+    void bothCarriersAreListedCheapestFirstAndTheDefaultIsTheCheapest() throws Exception {
+        cartWith("opt-tee", 1);
+        ghn.useSampleData();
+        ghn.returnFee(38_500);
+        ghtk.returnFee(32_000);
+
+        call(IDS_BODY).andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.fee").value(32000))
+                .andExpect(jsonPath("$.result.source").value("GHTK"))
+                .andExpect(jsonPath("$.result.options.length()").value(2))
+                .andExpect(jsonPath("$.result.options[0].source").value("GHTK"))
+                .andExpect(jsonPath("$.result.options[0].fee").value(32000))
+                .andExpect(jsonPath("$.result.options[0].estimated").value(false))
+                .andExpect(jsonPath("$.result.options[1].source").value("GHN"))
+                .andExpect(jsonPath("$.result.options[1].fee").value(38500));
+    }
+
+    @Test
+    void singleCarrierQuoteHasOneOptionAndTheTableHasNone() throws Exception {
+        cartWith("opt-tee2", 1);
+        ghtk.returnFee(33_000);
+        call(BODY).andExpect(jsonPath("$.result.options.length()").value(1))
+                .andExpect(jsonPath("$.result.options[0].source").value("GHTK"));
+
+        ghtk.reset();
+        quoteService.clearCache();
+        call(BODY).andExpect(jsonPath("$.result.source").value("TABLE"))
+                .andExpect(jsonPath("$.result.options.length()").value(0));
     }
 }
