@@ -299,6 +299,7 @@ input.ad-search__input::-webkit-search-cancel-button, .ad-search > input::-webki
 .ad-set__note { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--fs-small); }
 .ad-carriers { display: grid; gap: 14px; list-style: none; margin: 0; padding: 0; }
 .ad-carrier__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ad-carrier__ctl { display: inline-flex; align-items: center; gap: 10px; }
 .ad-alert {
   display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-radius: var(--r-sm);
   background: var(--danger-soft); color: var(--danger); font-size: var(--fs-small); font-weight: 500; line-height: 1.5;

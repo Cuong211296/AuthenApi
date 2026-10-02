@@ -122,24 +122,29 @@ export function withSavedOption(options, saved, key) {
   return options.some((o) => o.value === value) ? options : [{ value, label: saved.name, item: saved }, ...options];
 }
 
-/** Status card rows for the carriers ({key, label, enabled, detail, hint}). */
+export const CARRIER_STATE_LABEL = { on: 'Đang bật', off: 'Đã tắt', missing: 'Chưa cấu hình' };
+export const ALL_OFF_NOTE = 'Cả hai đơn vị đều đang tắt hoặc chưa cấu hình, hệ thống dùng bảng phí cố định theo tỉnh.';
+
+function carrierRow(key, label, carrier, detail, missingHint) {
+  const configured = Boolean(carrier.configured);
+  const on = configured && carrier.enabled !== false; // a missing switch value means on
+  return { key, label, configured, on, state: !configured ? 'missing' : on ? 'on' : 'off', detail, hint: configured ? '' : missingHint };
+}
+
+/** Status card rows for the carriers ({key, label, configured, on, state, detail, hint}). */
 export function carrierRows(carriers) {
   const ghn = carriers?.ghn ?? {};
   const ghtk = carriers?.ghtk ?? {};
   return [
-    {
-      key: 'ghn',
-      label: 'GHN',
-      enabled: Boolean(ghn.enabled),
-      detail: ghn.enabled && ghn.shopId ? `Shop ID ${ghn.shopId}` : '',
-      hint: ghn.enabled ? '' : 'Thêm GHN_SHOP_ID vào .env để bật GHN',
-    },
-    {
-      key: 'ghtk',
-      label: 'GHTK',
-      enabled: Boolean(ghtk.enabled),
-      detail: '',
-      hint: ghtk.enabled ? '' : 'Thêm GHTK_TOKEN vào .env để bật GHTK',
-    },
+    carrierRow('ghn', 'GHN', ghn, ghn.configured && ghn.shopId ? `Shop ID ${ghn.shopId}` : '', 'Thêm GHN_SHOP_ID vào .env để bật GHN'),
+    carrierRow('ghtk', 'GHTK', ghtk, '', 'Thêm GHTK_TOKEN vào .env để bật GHTK'),
   ];
 }
+
+/** Body of PUT /admin/settings/carriers after flipping one carrier (the other keeps its stored switch). */
+export function carrierSwitchBody(carriers, key, on) {
+  return { ghn: carriers?.ghn?.enabled !== false, ghtk: carriers?.ghtk?.enabled !== false, [key]: on };
+}
+
+/** True when no carrier can quote (every one is off or not configured), so the fixed province table is used. */
+export const allCarriersOff = (carriers) => carrierRows(carriers).every((r) => !r.on);

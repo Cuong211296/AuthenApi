@@ -4,13 +4,14 @@ import Badge from '../../components/ui/Badge.jsx';
 import Button from '../../components/ui/Button.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import Field from '../../components/ui/Field.jsx';
+import Switch from '../../components/ui/Switch.jsx';
 import { Skeleton } from '../../components/ui/Skeleton.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
 import { AlertIcon, CheckIcon } from '../../components/ui/icons.jsx';
 import { useGhnAddress } from '../../hooks/useGhnAddress.js';
 import { MODE_IDS, findOption, listStatus, selectionReducer, toOptions } from '../../utils/address.js';
 import {
-  NOTE, SETTINGS_FIELD_ORDER, buildSettingsPayload, carrierRows, isSettingsDirty, settingsErrors, settingsMode,
+  ALL_OFF_NOTE, CARRIER_STATE_LABEL, NOTE, SETTINGS_FIELD_ORDER, allCarriersOff, buildSettingsPayload, carrierRows, carrierSwitchBody, isSettingsDirty, settingsErrors, settingsMode,
   settingsSnapshot, settingsToState, withSavedOption,
 } from '../../utils/settings.js';
 import AdminPageHeader from './AdminPageHeader.jsx';
@@ -61,21 +62,50 @@ function SettingsSkeleton() {
 }
 
 function CarrierCard({ carriers }) {
+  const { toast } = useToast();
+  const [current, setCurrent] = useState(carriers); // own state: a switch saves on click and must not touch the shop form
+  const [pending, setPending] = useState('');
+  useEffect(() => { setCurrent(carriers); }, [carriers]);
+  const rows = carrierRows(current);
+
+  async function toggle(key, on) {
+    if (pending) return;
+    setPending(key);
+    try {
+      const saved = await api('PUT', '/admin/settings/carriers', carrierSwitchBody(current, key, on));
+      setCurrent(saved.carriers);
+    } catch (err) {
+      toast(err.message || 'Không lưu được thay đổi, vui lòng thử lại', { tone: 'danger' }); // the switch reverts below
+    } finally {
+      setPending('');
+    }
+  }
+
   return (
     <aside className="ad-card ad-set__card ad-set__side" aria-labelledby="ad-set-carriers">
       <h2 id="ad-set-carriers" className="ad-set__title">Đơn vị vận chuyển</h2>
       <ul className="ad-carriers">
-        {carrierRows(carriers).map((c) => (
+        {rows.map((c) => (
           <li key={c.key} className="ad-carrier">
             <div className="ad-carrier__row">
               <strong>{c.label}</strong>
-              <Badge tone={c.enabled ? 'success' : 'neutral'} dot>{c.enabled ? 'Đang bật' : 'Chưa bật'}</Badge>
+              <span className="ad-carrier__ctl">
+                <Badge tone={c.state === 'on' ? 'success' : 'neutral'} dot>{CARRIER_STATE_LABEL[c.state]}</Badge>
+                <Switch
+                  hideLabel
+                  label={`Bật ${c.label}`}
+                  checked={pending === c.key ? !c.on : c.on}
+                  disabled={!c.configured || Boolean(pending)}
+                  onChange={(on) => toggle(c.key, on)}
+                />
+              </span>
             </div>
             {c.detail && <p className="ad-muted">{c.detail}</p>}
             {c.hint && <p className="ad-muted">{c.hint}</p>}
           </li>
         ))}
       </ul>
+      {allCarriersOff(current) && <p className="ad-muted" role="status">{ALL_OFF_NOTE}</p>}
       <p className="ad-set__note">{NOTE}</p>
     </aside>
   );

@@ -1,5 +1,5 @@
 import {
-  EMPTY_PICKUP_SELECTION, buildSettingsPayload, carrierRows, isSettingsDirty, settingsErrors, settingsMode, settingsSnapshot,
+  EMPTY_PICKUP_SELECTION, buildSettingsPayload, CARRIER_STATE_LABEL, allCarriersOff, carrierRows, carrierSwitchBody, isSettingsDirty, settingsErrors, settingsMode, settingsSnapshot,
   settingsToState, withSavedOption,
 } from './settings.js';
 
@@ -118,10 +118,31 @@ describe('misc', () => {
     expect(withSavedOption(opts, { id: 2, name: 'B' }, 'id')).toBe(opts);
     expect(withSavedOption(opts, null, 'id')).toBe(opts);
   });
-  it('carrierRows explains how to enable a carrier', () => {
-    const rows = carrierRows({ ghn: { enabled: false, shopId: null }, ghtk: { enabled: true } });
-    expect(rows[0]).toMatchObject({ enabled: false, hint: 'Thêm GHN_SHOP_ID vào .env để bật GHN' });
-    expect(rows[1]).toMatchObject({ enabled: true, hint: '' });
-    expect(carrierRows({ ghn: { enabled: true, shopId: '123' } })[0].detail).toBe('Shop ID 123');
+  it('carrierRows tells missing, on and off apart', () => {
+    const rows = carrierRows({
+      ghn: { configured: true, enabled: false, shopId: '123' },
+      ghtk: { configured: false, enabled: true },
+    });
+    expect(rows[0]).toMatchObject({ key: 'ghn', configured: true, on: false, state: 'off', detail: 'Shop ID 123', hint: '' });
+    expect(rows[1]).toMatchObject({
+      key: 'ghtk', configured: false, on: false, state: 'missing', hint: 'Thêm GHTK_TOKEN vào .env để bật GHTK',
+    });
+    expect(carrierRows({ ghn: { configured: false, enabled: true } })[0].hint).toBe('Thêm GHN_SHOP_ID vào .env để bật GHN');
+    const on = carrierRows({ ghn: { configured: true, enabled: true, shopId: null }, ghtk: { configured: true } });
+    expect(on[0]).toMatchObject({ state: 'on', on: true, detail: '' });
+    expect(on[1]).toMatchObject({ state: 'on', on: true }); // a missing switch value means on
+    expect(CARRIER_STATE_LABEL).toEqual({ on: 'Đang bật', off: 'Đã tắt', missing: 'Chưa cấu hình' });
+  });
+
+  it('carrierSwitchBody flips one carrier and keeps the other stored value', () => {
+    const carriers = { ghn: { configured: true, enabled: true }, ghtk: { configured: true, enabled: false } };
+    expect(carrierSwitchBody(carriers, 'ghn', false)).toEqual({ ghn: false, ghtk: false });
+    expect(carrierSwitchBody(carriers, 'ghtk', true)).toEqual({ ghn: true, ghtk: true });
+    expect(carrierSwitchBody(null, 'ghn', false)).toEqual({ ghn: false, ghtk: true });
+  });
+
+  it('allCarriersOff is true when nothing can quote (off or not configured)', () => {
+    expect(allCarriersOff({ ghn: { configured: true, enabled: false }, ghtk: { configured: false, enabled: true } })).toBe(true);
+    expect(allCarriersOff({ ghn: { configured: true, enabled: true }, ghtk: { configured: false } })).toBe(false);
   });
 });
