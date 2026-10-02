@@ -147,6 +147,10 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
       onChanged();
     } catch (err) {
       setError(err.message);
+      // The message sits at the top of the form; the footer button stays visible while the body is scrolled, so
+      // surface the failure where the admin is looking.
+      toast(err.message, { tone: 'danger' });
+      requestAnimationFrame(() => bodyRef.current?.querySelector('.ad-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
     } finally {
       setBusy('');
     }
