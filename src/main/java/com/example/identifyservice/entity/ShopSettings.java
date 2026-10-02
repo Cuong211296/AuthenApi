@@ -14,7 +14,7 @@ import lombok.experimental.FieldDefaults;
 
 import java.time.Instant;
 
-/** The shop's own settings: a single row with the fixed id {@code "main"}. Every column is nullable (no settings yet). */
+/** The shop's own settings: a single row with the fixed id {@code "main"}. Every column except the two carrier switches is nullable (no settings yet). */
 @Getter
 @Setter
 @Builder
@@ -52,6 +52,15 @@ public class ShopSettings {
 
     @Column(length = 300)
     String address;
+
+    /** Carrier quoting switches (default on). A carrier also needs its .env credentials to be used. */
+    @Builder.Default
+    @Column(nullable = false, columnDefinition = "boolean not null default true")
+    boolean ghnEnabled = true;
+
+    @Builder.Default
+    @Column(nullable = false, columnDefinition = "boolean not null default true")
+    boolean ghtkEnabled = true;
 
     Instant updatedAt;
 

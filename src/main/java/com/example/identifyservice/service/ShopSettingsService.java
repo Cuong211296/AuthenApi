@@ -1,5 +1,6 @@
 package com.example.identifyservice.service;
 
+import com.example.identifyservice.dto.request.CarrierSwitchesRequest;
 import com.example.identifyservice.dto.request.ShopSettingsRequest;
 import com.example.identifyservice.dto.response.ShopSettingsResponse;
 import com.example.identifyservice.entity.ShopSettings;
@@ -45,6 +46,7 @@ public class ShopSettingsService {
     private final GhtkProperties ghtkProps;
     private final Clock clock;
     private final AtomicReference<PickupAddress> snapshot = new AtomicReference<>();
+    private final AtomicReference<CarrierSwitches> switches = new AtomicReference<>();
     private final List<Runnable> changeListeners = new CopyOnWriteArrayList<>();
     private final Object writeLock = new Object();
 
@@ -85,6 +87,16 @@ public class ShopSettingsService {
         return snapshot.get();
     }
 
+    /** The carrier switches for the quote path: an in-memory snapshot, all on when nothing was saved. */
+    public CarrierSwitches carrierSwitches() {
+        CarrierSwitches current = switches.get();
+        if (current != null) return current;
+        CarrierSwitches loaded = repository.findById(ID).map(ShopSettingsService::toSwitches)
+                .orElse(CarrierSwitches.ALL_ON);
+        switches.compareAndSet(null, loaded);   // an update that raced ahead of this load wins
+        return switches.get();
+    }
+
     /** Runs after every successful update (the quote service clears its cached quotes here). */
     public void addChangeListener(Runnable listener) {
         changeListeners.add(listener);
@@ -93,6 +105,7 @@ public class ShopSettingsService {
     /** Forgets the snapshot so the next {@link #pickup()} reloads from the database (tests, manual SQL edits). */
     public void invalidateSnapshot() {
         snapshot.set(null);
+        switches.set(null);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -118,6 +131,23 @@ public class ShopSettingsService {
             row.setUpdatedBy(username);
             ShopSettings saved = repository.save(row);
             snapshot.set(toPickup(saved));
+            changeListeners.forEach(Runnable::run);
+            return toResponse(saved);
+        }
+    }
+
+    /** Switches carriers on or off. Database only (no HTTP), applies to the next quote through the change listeners. */
+    @PreAuthorize("hasRole('ADMIN')")
+    public ShopSettingsResponse updateCarriers(CarrierSwitchesRequest request, String username) {
+        if (request == null || request.ghn() == null || request.ghtk() == null) throw invalid();
+        synchronized (writeLock) {
+            ShopSettings row = repository.findById(ID).orElseGet(() -> ShopSettings.builder().id(ID).build());
+            row.setGhnEnabled(request.ghn());
+            row.setGhtkEnabled(request.ghtk());
+            row.setUpdatedAt(clock.instant());
+            row.setUpdatedBy(username);
+            ShopSettings saved = repository.save(row);
+            switches.set(toSwitches(saved));
             changeListeners.forEach(Runnable::run);
             return toResponse(saved);
         }
@@ -150,12 +180,17 @@ public class ShopSettingsService {
     private ShopSettingsResponse toResponse(ShopSettings row) {
         PickupAddress pickup = row == null ? PickupAddress.EMPTY : toPickup(row);
         String shopId = ghnProps.shopId() == null || ghnProps.shopId().isBlank() ? null : ghnProps.shopId().trim();
+        CarrierSwitches sw = row == null ? CarrierSwitches.ALL_ON : toSwitches(row);
         var carriers = new ShopSettingsResponse.Carriers(
-                new ShopSettingsResponse.Ghn(ghnProps.isEnabled(), shopId),
-                new ShopSettingsResponse.Ghtk(ghtkProps.isEnabled(pickup.provinceName(), pickup.wardName())));
+                new ShopSettingsResponse.Ghn(ghnProps.isEnabled(), sw.ghn(), shopId),
+                new ShopSettingsResponse.Ghtk(ghtkProps.isEnabled(pickup.provinceName(), pickup.wardName()), sw.ghtk()));
         String mode = ghnProps.isEnabled() ? "GHN_IDS" : "TEXT";
         return new ShopSettingsResponse(row == null ? null : row.getShopName(), row == null ? null : row.getPhone(),
                 pickup, carriers, mode, row == null ? null : row.getUpdatedAt(), row == null ? null : row.getUpdatedBy());
+    }
+
+    private static CarrierSwitches toSwitches(ShopSettings s) {
+        return new CarrierSwitches(s.isGhnEnabled(), s.isGhtkEnabled());
     }
 
     private static PickupAddress toPickup(ShopSettings s) {

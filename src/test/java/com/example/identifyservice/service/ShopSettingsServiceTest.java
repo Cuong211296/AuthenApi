@@ -1,5 +1,6 @@
 package com.example.identifyservice.service;
 
+import com.example.identifyservice.dto.request.CarrierSwitchesRequest;
 import com.example.identifyservice.dto.request.ShopSettingsRequest;
 import com.example.identifyservice.dto.response.ShopSettingsResponse;
 import com.example.identifyservice.exception.AppException;
@@ -18,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,9 +101,9 @@ class ShopSettingsServiceTest {
                 "Phường Bến Nghé", "12 Nguyễn Huệ"));
         assertThat(r.updatedBy()).isEqualTo("admin");
         assertThat(r.updatedAt()).isEqualTo(Instant.parse("2026-10-01T00:00:00Z"));
-        assertThat(r.carriers().ghn().enabled()).isTrue();
+        assertThat(r.carriers().ghn().configured()).isTrue();
         assertThat(r.carriers().ghn().shopId()).isEqualTo("777");
-        assertThat(r.carriers().ghtk().enabled()).isFalse();
+        assertThat(r.carriers().ghtk().configured()).isFalse();
         assertThat(s.pickup()).isEqualTo(r.pickup());
     }
 
@@ -147,7 +149,7 @@ class ShopSettingsServiceTest {
                 names(" Hà Nội ", null, "Phường Phúc Xá", "5 Hàng Bài")), "admin");
         assertThat(r.addressMode()).isEqualTo("TEXT");
         assertThat(r.pickup()).isEqualTo(names("Hà Nội", null, "Phường Phúc Xá", "5 Hàng Bài"));
-        assertThat(r.carriers().ghn().enabled()).isFalse();
+        assertThat(r.carriers().ghn().configured()).isFalse();
         assertThat(r.carriers().ghn().shopId()).isNull();
 
         assertInvalid(() -> s.update(req("Shop", null, hcmIds()), "a"));
@@ -216,9 +218,57 @@ class ShopSettingsServiceTest {
         // GHTK credentials but no env pick fields: enabled only once the settings give names
         GhtkProperties credsOnly = new GhtkProperties("T", "S", "https://ghtk.test", "", "", null, null, "road");
         ShopSettingsService s = service(GHN_OFF, credsOnly);
-        assertThat(s.get().carriers().ghtk().enabled()).isFalse();
+        assertThat(s.get().carriers().ghtk().configured()).isFalse();
         s.update(req("Shop", null, names("Hà Nội", null, "Phường Phúc Xá", null)), "a");
-        assertThat(s.get().carriers().ghtk().enabled()).isTrue();
+        assertThat(s.get().carriers().ghtk().configured()).isTrue();
         assertThat(service(GHN_OFF, GHTK_ON).get().carriers().ghtk().enabled()).isTrue();
+    }
+
+    @Test
+    void carrierSwitchesDefaultToOnPersistAndSurviveAReload() {
+        ShopSettingsService s = service(GHN_ON, GHTK_ON);
+        assertThat(s.carrierSwitches()).isEqualTo(CarrierSwitches.ALL_ON);
+
+        ShopSettingsResponse r = s.updateCarriers(new CarrierSwitchesRequest(false, true), "boss");
+
+        assertThat(r.carriers().ghn().configured()).isTrue();
+        assertThat(r.carriers().ghn().enabled()).isFalse();
+        assertThat(r.carriers().ghtk().enabled()).isTrue();
+        assertThat(r.updatedBy()).isEqualTo("boss");
+        assertThat(s.carrierSwitches()).isEqualTo(new CarrierSwitches(false, true));
+        // a fresh service has an empty snapshot and must read the stored row
+        assertThat(service(GHN_ON, GHTK_ON).carrierSwitches()).isEqualTo(new CarrierSwitches(false, true));
+    }
+
+    @Test
+    void changingTheSwitchesNotifiesListeners() {
+        ShopSettingsService s = service(GHN_ON, GHTK_ON);
+        AtomicInteger calls = new AtomicInteger();
+        s.addChangeListener(calls::incrementAndGet);
+        s.updateCarriers(new CarrierSwitchesRequest(true, false), "boss");
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test
+    void savingTheShopFormKeepsTheSwitches() {
+        ShopSettingsService s = service(GHN_ON, GHTK_ON);
+        s.updateCarriers(new CarrierSwitchesRequest(false, true), "boss");
+        s.update(req("Quini Bear", "0901234567", hcmIds()), "boss");
+        assertThat(s.carrierSwitches()).isEqualTo(new CarrierSwitches(false, true));
+        assertThat(service(GHN_ON, GHTK_ON).carrierSwitches()).isEqualTo(new CarrierSwitches(false, true));
+    }
+
+    @Test
+    void shopFormSavedFirstLeavesTheSwitchesOn() {
+        ShopSettingsService s = service(GHN_ON, GHTK_ON);
+        s.update(req("Quini Bear", "0901234567", hcmIds()), "boss");   // creates the row without touching the switches
+        assertThat(service(GHN_ON, GHTK_ON).carrierSwitches()).isEqualTo(CarrierSwitches.ALL_ON);
+    }
+
+    @Test
+    void missingSwitchValueIsInvalidInput() {
+        ShopSettingsService s = service(GHN_ON, GHTK_ON);
+        assertInvalid(() -> s.updateCarriers(new CarrierSwitchesRequest(null, true), "boss"));
+        assertInvalid(() -> s.updateCarriers(null, "boss"));
     }
 }

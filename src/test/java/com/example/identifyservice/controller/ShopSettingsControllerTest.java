@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class ShopSettingsControllerTest {
     static final String URL = "/admin/settings/shop";
+    static final String CARRIERS = "/admin/settings/carriers";
     static final String BODY = """
             {"shopName":"Quini Bear","phone":"0901234567",
              "pickup":{"provinceId":202,"districtId":1442,"wardCode":"20308","address":"12 Nguyễn Huệ"}}""";
@@ -143,5 +144,35 @@ class ShopSettingsControllerTest {
             assertThat(body).doesNotContain("TEST-GHN-TOKEN").doesNotContain("TEST-TOKEN").doesNotContain("TESTSRC")
                     .doesNotContainIgnoringCase("token");
         }
+    }
+
+    @Test
+    void carrierSwitchesAreAdminOnly() throws Exception {
+        String body = "{\"ghn\":false,\"ghtk\":true}";
+        mvc.perform(put(CARRIERS).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        var user = jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"));
+        mvc.perform(put(CARRIERS).with(user).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminTurnsACarrierOffAndGetShowsIt() throws Exception {
+        mvc.perform(put(CARRIERS).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ghn\":false,\"ghtk\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.carriers.ghn.enabled").value(false))
+                .andExpect(jsonPath("$.result.carriers.ghtk.enabled").value(true))
+                .andExpect(jsonPath("$.result.updatedBy").value("boss"));
+        mvc.perform(get(URL).with(admin()))
+                .andExpect(jsonPath("$.result.carriers.ghn.enabled").value(false))
+                .andExpect(jsonPath("$.result.carriers.ghn.configured").value(true));
+    }
+
+    @Test
+    void aMissingSwitchIsInvalidInput() throws Exception {
+        mvc.perform(put(CARRIERS).with(admin()).contentType(MediaType.APPLICATION_JSON).content("{\"ghn\":true}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1011));
     }
 }

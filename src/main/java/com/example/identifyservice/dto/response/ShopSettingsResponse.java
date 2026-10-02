@@ -10,9 +10,10 @@ public record ShopSettingsResponse(String shopName, String phone, PickupAddress 
     public record Carriers(Ghn ghn, Ghtk ghtk) {
     }
 
-    public record Ghn(boolean enabled, String shopId) {
+    /** {@code configured}: credentials present in .env. {@code enabled}: the admin switch (default on). */
+    public record Ghn(boolean configured, boolean enabled, String shopId) {
     }
 
-    public record Ghtk(boolean enabled) {
+    public record Ghtk(boolean configured, boolean enabled) {
     }
 }
