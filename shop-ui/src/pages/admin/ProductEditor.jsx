@@ -135,8 +135,16 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     const found = validateProduct(editing);
     setErrs(found);
     if (Object.keys(found).length) { focusFirstInvalid(bodyRef.current); return; }
+    // A half-filled "Thêm biến thể" form is part of what the admin expects "Lưu" to save: check it before writing anything.
+    const withVariant = !editing.isNew && draftFilled();
+    if (withVariant) {
+      const draftFound = draftErrors();
+      setAddErrs(draftFound);
+      if (Object.keys(draftFound).length) { focusFirstInvalid(bodyRef.current); return; }
+    }
     setError('');
     setBusy('save');
+    let saveOk = false;
     try {
       const body = productBody(editing);
       const saved = editing.isNew ? await api('POST', '/admin/products', body) : await api('PUT', `/admin/products/${editing.id}`, body);
@@ -145,6 +153,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
       setBaseline((b) => ({ ...b, product: editorSnapshot(fresh).product }));
       toast('Đã lưu sản phẩm', { tone: 'success' });
       onChanged();
+      saveOk = true;
     } catch (err) {
       setError(err.message);
       // The message sits at the top of the form; the footer button stays visible while the body is scrolled, so
@@ -154,6 +163,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     } finally {
       setBusy('');
     }
+    if (saveOk && withVariant) await postVariant();
   }
 
   async function deactivate() {
@@ -194,17 +204,19 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     return true;
   };
 
-  async function addVariant(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
+  const draftFilled = () => Object.values(variant).some((x) => String(x).trim() !== '');
+
+  function draftErrors() {
     const found = {};
     for (const key of ['size', 'color', 'sku']) if (!variant[key].trim()) found[key] = 'Bắt buộc';
     const stock = countError(variant.stock, 'Tồn kho');
     if (stock) found.stock = stock;
     const price = optionalCountError(variant.price, 'Giá riêng');
     if (price) found.price = price;
-    setAddErrs(found);
-    if (Object.keys(found).length) { focusFirstInvalid(form); return; }
+    return found;
+  }
+
+  async function postVariant() {
     setVarError('');
     setBusy('add');
     try {
@@ -215,9 +227,19 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
       if (await refetchVariants([])) toast('Đã thêm biến thể', { tone: 'success' });
     } catch (err) {
       setVarError(err.message);
+      toast(err.message, { tone: 'danger' });
     } finally {
       setBusy('');
     }
+  }
+
+  async function addVariant(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const found = draftErrors();
+    setAddErrs(found);
+    if (Object.keys(found).length) { focusFirstInvalid(form); return; }
+    await postVariant();
   }
 
   async function saveVariant(v) {
@@ -239,7 +261,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     }
   }
 
-  const dirty = isEditorDirty(baseline, editing);
+  const dirty = isEditorDirty(baseline, editing) || (!editing?.isNew && draftFilled());
   const busyWriting = busy === 'save' || busy === 'hide';
 
   // Every close path (overlay, Esc, X, "Đóng") comes through here.
