@@ -67,10 +67,39 @@ No database change: `orders.shipping_source` already stores `GHN | GHTK | TABLE`
 - `createOrder` payload carries `carrier` only when the customer saw 2 options.
 - On `SHIPPING_CARRIER_UNAVAILABLE`: danger toast, re-quote, selection falls back to the cheapest.
 
+## Admin: turn each carrier on or off
+
+The "Đơn vị vận chuyển" card on `/admin/settings` gets a switch per carrier so the admin can choose which carriers
+the shop uses, without touching `.env` or restarting.
+
+- **Effective availability** = configured (credentials in `.env`, as today) AND switched on. Only an available
+  carrier is asked for a quote. Both unavailable -> the fixed province table (same rule as "no carrier quotes").
+- **Card states per carrier:** not configured (switch disabled, hint to add the env vars, as today); configured and on
+  ("Đang bật"); configured and off ("Đã tắt"). When nothing is available the card says the fixed table is in use.
+- **Default on.** A configured carrier with no stored choice is on, so nothing changes until the admin turns one off.
+- **Storage:** two columns on the single `shop_settings` row, `ghn_enabled` and `ghtk_enabled` (BOOLEAN, null or true =
+  on). Needs `migration_v5_carrier_toggle.sql` (backup first, `DEFAULT TRUE`, existing row backfilled) per the
+  database workflow in CLAUDE.md.
+- **API:** `PUT /admin/settings/carriers` (ADMIN) with `{ghn: boolean, ghtk: boolean}`; separate from the shop form
+  `PUT /admin/settings/shop` so toggling never requires a valid pickup address or a GHN round trip. The switch saves
+  on click (optimistic, reverts with a toast on failure). `GET /admin/settings/shop` carriers become
+  `{ghn: {configured, enabled, shopId}, ghtk: {configured, enabled}}` (`configured` is today's `enabled`).
+  Updates `updatedAt/updatedBy`.
+- **Backend:** `ShopSettingsService` keeps the switches in its in-memory snapshot next to the pickup and exposes
+  `carrierSwitches()`; a change clears the quote cache through the existing change listener, so it applies to the next
+  quote immediately. `ShippingQuoteService` treats GHN as available when `ghnProps.isEnabled() && switch.ghn`, and GHTK
+  likewise. The switch only controls **fee quoting**: GHN address master data (the province/district/ward selects) and
+  `addressMode` stay tied to GHN credentials, so turning GHN off while GHTK is on keeps the same address form and GHTK
+  is quoted with the resolved names.
+- **Checkout config:** `GET /shipping/config` `provider` reports the first available quoting carrier (`GHN`, `GHTK`
+  or `TABLE`).
+- **In-flight orders:** a customer who picked a carrier that the admin then turned off gets
+  `SHIPPING_CARRIER_UNAVAILABLE` (existing rule), re-quotes and sees the remaining options.
+
 ## Out of scope
 
-Admin settings to enable or rank carriers, per-carrier service types, MoMo, order-detail changes (the stored
-`shippingSource` label already renders).
+Ranking carriers, per-carrier service types, MoMo, order-detail changes (the stored `shippingSource` label already
+renders).
 
 ## Testing
 
@@ -78,4 +107,6 @@ Admin settings to enable or rank carriers, per-carrier service types, MoMo, orde
   `quoteForCarrier` with a carrier that is available / not available / null.
 - Order: checkout with `carrier`, without it, with an unavailable one (nothing saved, stock untouched).
 - Controller: `options` shape, `carrier` validation.
-- Frontend: option/default/keep-selection helpers (Vitest).
+- Frontend: option/default/keep-selection helpers (Vitest), carrier switch states and optimistic revert.
+- Switches: GHN off -> only GHTK quoted, both off -> table, switch change clears cached quotes, endpoint is
+  ADMIN-only, default (no stored value) is on, a carrier without credentials is never available even when on.
