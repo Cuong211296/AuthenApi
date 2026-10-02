@@ -13,8 +13,10 @@ import {
 import { formatVnd } from '../utils/money.js';
 import { checkoutErrors, normalizeCheckoutForm } from '../utils/checkout.js';
 import {
-  NOT_DELIVERABLE_MESSAGE, cartKeyOf, formatWeight, orderTotal, shippingDisplay, shippingHint,
+  NOT_DELIVERABLE_MESSAGE, applyCarrier, carrierForOrder, cartKeyOf, chosenOption, formatWeight, hasCarrierChoice, orderTotal,
+  quoteOptions, shippingDisplay, shippingHint,
 } from '../utils/shipping.js';
+import CarrierChoice from '../components/CarrierChoice.jsx';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
@@ -168,12 +170,17 @@ export default function Checkout() {
 
   const tableFee = useMemo(() => provinces.find((p) => p.province === form.province)?.fee ?? 0, [provinces, form.province]);
   const addressPayload = buildAddressPayload({ mode, form, selections });
+  const [pickedCarrier, setPickedCarrier] = useState(null);
+  const [quoteNonce, setQuoteNonce] = useState(0); // bumped to force a fresh quote after the server refused our carrier
   const quote = useShippingQuote({
     address: addressPayload,
-    cartKey: cartKeyOf(cart),
+    cartKey: `${cartKeyOf(cart)}:${quoteNonce}`,
     enabled: loaded && !configLoading && !placed && cart.items.length > 0 && isAddressComplete(mode, form, selections),
   });
-  const ship = shippingDisplay({ state: quote.state, quote: quote.quote, tableFee, province: form.province, mode });
+  const chosen = chosenOption(quote.quote, pickedCarrier);
+  const ship = shippingDisplay({
+    state: quote.state, quote: applyCarrier(quote.quote, pickedCarrier), tableFee, province: form.province, mode,
+  });
   const shippingFee = ship?.fee ?? 0;
   // The address the server rejected at checkout (2018); the block lifts as soon as the address changes.
   const addressKey = JSON.stringify(addressPayload);
@@ -199,7 +206,7 @@ export default function Checkout() {
       focusField(firstInvalid);
       return;
     }
-    const payload = normalizeCheckoutForm(form, addr);
+    const payload = { ...normalizeCheckoutForm(form, addr), carrier: carrierForOrder(quote.quote, pickedCarrier) };
     inFlight.current = true;
     setBusy(true);
     let order;
@@ -208,6 +215,11 @@ export default function Checkout() {
     } catch (err) {
       inFlight.current = false;
       setBusy(false);
+      if (err.code === 2024) { // the chosen carrier stopped quoting: start over with a fresh quote and the cheapest
+        setPickedCarrier(null);
+        setQuoteNonce((n) => n + 1);
+        return setError(err.message);
+      }
       if (err.code === 2018) {
         setRejectedKey(addressKey);
         return focusField('ward');
@@ -421,6 +433,9 @@ export default function Checkout() {
               </dd>
             </div>
           </dl>
+          {hasCarrierChoice(quote.quote) && (
+            <CarrierChoice options={quoteOptions(quote.quote)} value={chosen.source} onChange={setPickedCarrier} disabled={busy} />
+          )}
           <div className="co-total">
             <span>Tổng cộng</span>
             <Money value={orderTotal(cart.subtotal, shippingFee)} className="co-total__value" />

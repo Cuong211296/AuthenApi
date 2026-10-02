@@ -1,5 +1,5 @@
 import {
-  cartKeyOf, describeQuote, formatWeight, orderTotal, quoteErrorMessage, quoteInputsReady, shippingDisplay, shippingHint, shippingSourceLabel,
+  applyCarrier, carrierForOrder, cartKeyOf, chosenOption, describeQuote, hasCarrierChoice, quoteOptions, formatWeight, orderTotal, quoteErrorMessage, quoteInputsReady, shippingDisplay, shippingHint, shippingSourceLabel,
 } from './shipping.js';
 
 const ghtk = { fee: 32000, source: 'GHTK', estimated: false, weightGrams: 600, deliverable: true, message: null };
@@ -124,5 +124,58 @@ describe('orderTotal / cartKeyOf', () => {
     expect(cartKeyOf({ totalQuantity: 3, subtotal: 100 })).not.toBe(a);
     expect(cartKeyOf({ totalQuantity: 2, subtotal: 150 })).not.toBe(a);
     expect(cartKeyOf({ totalQuantity: 2, subtotal: 100 })).toBe(a);
+  });
+});
+
+const two = {
+  fee: 32000, source: 'GHTK', estimated: false, weightGrams: 600, deliverable: true, message: null,
+  options: [
+    { source: 'GHTK', fee: 32000, estimated: false },
+    { source: 'GHN', fee: 38500, estimated: false },
+  ],
+};
+const one = { ...ghn, options: [{ source: 'GHN', fee: 28000, estimated: false }] };
+
+describe('carrier options', () => {
+  it('quoteOptions keeps live carriers only and tolerates a missing list', () => {
+    expect(quoteOptions(two).map((o) => o.source)).toEqual(['GHTK', 'GHN']);
+    expect(quoteOptions({ ...two, options: [{ source: 'TABLE', fee: 1, estimated: true }] })).toEqual([]);
+    expect(quoteOptions(ghn)).toEqual([]);
+    expect(quoteOptions(null)).toEqual([]);
+  });
+
+  it('there is a choice only with two or more options', () => {
+    expect(hasCarrierChoice(two)).toBe(true);
+    expect(hasCarrierChoice(one)).toBe(false);
+    expect(hasCarrierChoice(table)).toBe(false);
+  });
+
+  it('chosenOption keeps the pick while it is offered, else the cheapest', () => {
+    expect(chosenOption(two, null).source).toBe('GHTK');
+    expect(chosenOption(two, 'GHN').source).toBe('GHN');
+    expect(chosenOption(one, 'GHTK').source).toBe('GHN'); // picked carrier no longer offered
+    expect(chosenOption(table, 'GHN')).toBeNull();
+  });
+
+  it('applyCarrier makes the summary follow the pick and leaves single quotes alone', () => {
+    expect(applyCarrier(two, 'GHN')).toMatchObject({ source: 'GHN', fee: 38500, estimated: false, weightGrams: 600 });
+    expect(applyCarrier(two, null)).toMatchObject({ source: 'GHTK', fee: 32000 });
+    expect(applyCarrier(one, 'GHN')).toBe(one);
+    expect(applyCarrier(null, 'GHN')).toBeNull();
+  });
+
+  it('carrierForOrder is sent only when the customer saw a choice', () => {
+    expect(carrierForOrder(two, 'GHN')).toBe('GHN');
+    expect(carrierForOrder(two, null)).toBe('GHTK');
+    expect(carrierForOrder(one, 'GHN')).toBeUndefined();
+    expect(carrierForOrder(table, null)).toBeUndefined();
+  });
+
+  it('the summary total follows the picked carrier', () => {
+    const picked = applyCarrier(two, 'GHN');
+    const ship = shippingDisplay({ state: 'ready', quote: picked, tableFee: 0, province: '', mode: 'GHN_IDS' });
+    expect(ship.fee).toBe(38500);
+    expect(ship.label).toBe('Phí GHN');
+    expect(orderTotal(500000, ship.fee)).toBe(538500);
   });
 });

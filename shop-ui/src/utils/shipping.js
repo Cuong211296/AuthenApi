@@ -87,3 +87,31 @@ export const orderTotal = (subtotal, fee) => (Number(subtotal) || 0) + (Number(f
 
 /** Stable key that changes whenever the cart contents change (total quantity + subtotal). */
 export const cartKeyOf = (cart) => `${cart?.totalQuantity ?? (cart?.items || []).reduce((n, i) => n + i.quantity, 0)}:${cart?.subtotal ?? 0}`;
+
+export const CARRIER_NAME = { GHN: 'GHN', GHTK: 'GHTK' };
+
+/** Live carrier options of a quote (the server lists them cheapest first); [] when the fee is the fixed table. */
+export function quoteOptions(quote) {
+  return Array.isArray(quote?.options) ? quote.options.filter((o) => CARRIER_NAME[o?.source]) : [];
+}
+
+/** True when the customer has a real choice (two or more live carriers). */
+export const hasCarrierChoice = (quote) => quoteOptions(quote).length >= 2;
+
+/** The option in use: the customer's pick while it is still offered, else the cheapest (first); null without options. */
+export function chosenOption(quote, picked) {
+  const options = quoteOptions(quote);
+  return options.find((o) => o.source === picked) ?? options[0] ?? null;
+}
+
+/** The quote with the chosen option's fee and source applied, so the summary and the total follow the pick. */
+export function applyCarrier(quote, picked) {
+  if (!quote || !hasCarrierChoice(quote)) return quote;
+  const o = chosenOption(quote, picked);
+  return { ...quote, source: o.source, fee: o.fee, estimated: o.estimated };
+}
+
+/** `carrier` for POST /orders: only sent when the customer saw a choice (otherwise the server picks the cheapest). */
+export function carrierForOrder(quote, picked) {
+  return hasCarrierChoice(quote) ? chosenOption(quote, picked).source : undefined;
+}

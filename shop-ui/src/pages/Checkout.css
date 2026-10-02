@@ -108,3 +108,7 @@
 @media (min-width: 640px) and (max-width: 959px) {
   .co-radios .ui-radios__card { align-items: flex-start; }
 }
+
+.co-carriers { display: grid; gap: 10px; margin: 14px 0 4px; }
+.co-carriers__title { font-size: var(--fs-small); font-weight: 600; }
+.co-carrier__abbr { font-size: 11px; letter-spacing: 0.02em; }
