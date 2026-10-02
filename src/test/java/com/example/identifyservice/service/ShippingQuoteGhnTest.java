@@ -114,7 +114,7 @@ class ShippingQuoteGhnTest {
         assertThat(call.toWardCode()).isEqualTo("20308");
         assertThat(call.weightGrams()).isEqualTo(1300);
         assertThat(call.insuranceValue()).isEqualTo(850_000);
-        assertThat(ghtk.calls).isEmpty();
+        assertThat(ghtk.calls).hasSize(1);   // GHTK is asked as well (the fake is down by default, so GHN's fee is still selected)
     }
 
     @Test
@@ -258,7 +258,10 @@ class ShippingQuoteGhnTest {
         Cart c = cart(tee, 1);
         assertThat(service.quote(c, hanoiText("1 St")).source()).isEqualTo(ShippingSource.GHTK);
         ghn.returnFee(37_000);
-        assertThat(quoteIds(c).source()).isEqualTo(ShippingSource.GHN);
+        // both carriers quote the ids address now: each keeps its own fee (the GHTK fee is never served as GHN's)
+        var options = service.quoteOptionsResolved(CartMeasure.of(c), service.resolveAddress(HCM_IDS)).options();
+        assertThat(options).extracting(ShippingQuote::source).containsExactly(ShippingSource.GHTK, ShippingSource.GHN);
+        assertThat(options).extracting(ShippingQuote::fee).containsExactly(31_000L, 37_000L);
     }
 
     @Test

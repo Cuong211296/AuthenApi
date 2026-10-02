@@ -38,7 +38,8 @@ public enum ErrorCode {
     IMAGE_UPLOAD_DISABLED(2020, "Tính năng tải ảnh lên chưa được cấu hình", HttpStatus.SERVICE_UNAVAILABLE),
     IMAGE_INVALID_TYPE(2021, "Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP", HttpStatus.BAD_REQUEST),
     IMAGE_TOO_LARGE(2022, "Ảnh vượt quá dung lượng tối đa 5 MB", HttpStatus.PAYLOAD_TOO_LARGE),
-    IMAGE_UPLOAD_FAILED(2023, "Tải ảnh lên thất bại, vui lòng thử lại", HttpStatus.BAD_GATEWAY);
+    IMAGE_UPLOAD_FAILED(2023, "Tải ảnh lên thất bại, vui lòng thử lại", HttpStatus.BAD_GATEWAY),
+    SHIPPING_CARRIER_UNAVAILABLE(2024, "Đơn vị vận chuyển đã chọn hiện không khả dụng, vui lòng chọn lại", HttpStatus.CONFLICT);
 
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
