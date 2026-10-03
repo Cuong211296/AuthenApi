@@ -33,7 +33,7 @@ if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory -Path $out | Out-Null
 Copy-Item $jar.FullName (Join-Path $out 'app.jar')
 Copy-Item (Join-Path $root 'shop-ui\dist') (Join-Path $out 'web') -Recurse
-Get-ChildItem (Join-Path $PSScriptRoot '*.sh') | ForEach-Object {
+Get-ChildItem (Join-Path $PSScriptRoot '*') -Include '*.sh','*.sql' | ForEach-Object {
     Write-Lf (Join-Path $out $_.Name) ([IO.File]::ReadAllText($_.FullName))
 }
 
@@ -47,6 +47,7 @@ $override = [ordered]@{
     DB_USERNAME = 'shop'
     DB_PASSWORD = $dbPassword
     SERVER_PORT = '8081'
+    JPA_HIBERNATE_DDL_AUTO = 'none'   # the tablet MariaDB mangles Hibernate's foreign keys, schema comes from schema-tablet.sql
 }
 $lines = [IO.File]::ReadAllLines($envFile)
 $seen = @{}

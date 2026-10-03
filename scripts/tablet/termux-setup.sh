@@ -62,6 +62,16 @@ GRANT ALL PRIVILEGES ON identity_service.* TO '$DB_USERNAME'@'localhost';
 FLUSH PRIVILEGES;
 SQL
 
+# Hibernate cannot create the foreign keys on this MariaDB build (it leaves broken ones that reject valid rows),
+# so the schema comes from schema-tablet.sql and the .env sets JPA_HIBERNATE_DDL_AUTO=none.
+TABLES="$(mysql -u root -N -e "select count(*) from information_schema.tables where table_schema='identity_service'")"
+if [ "$TABLES" = "0" ]; then
+  echo "Importing schema-tablet.sql"
+  mysql -u root identity_service < "$BUNDLE/schema-tablet.sql"
+else
+  echo "identity_service already has $TABLES tables, schema not touched"
+fi
+
 echo "== 5/7 nginx (serves web/ on 8080 and forwards /identity to the backend on 8081)"
 mkdir -p "$PREFIX/etc/nginx"
 [ -f "$PREFIX/etc/nginx/nginx.conf.orig" ] || cp "$PREFIX/etc/nginx/nginx.conf" "$PREFIX/etc/nginx/nginx.conf.orig" 2>/dev/null || true

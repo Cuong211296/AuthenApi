@@ -170,7 +170,7 @@ scp -P 8022 -r tablet-bundle\web u0_a123@192.168.1.50:~/tablet-bundle/
 ssh -p 8022 u0_a123@192.168.1.50 "bash ~/tablet-bundle/start-all.sh"
 ```
 
-Khi có migration mới (file `migration_v*.sql`) thì backend tự thêm cột lúc khởi động. Tuy vậy các cột `NOT NULL` cần backfill thì nên chạy tay file SQL: `mysql -u root identity_service < file.sql`.
+Trên tab `ddl-auto` đã tắt (`none`), nên **backend không tự thêm cột**. Khi có migration mới (file `migration_v*.sql`) phải chạy tay trên tab: `scp` file sang rồi `mariadb -u root <tên-database> < file.sql`.
 
 ## Khi cần dừng và quay về PC
 
@@ -184,6 +184,7 @@ Rồi trên PC bật lại như cũ (ngrok, MySQL trong Docker, backend, fronten
 
 | Triệu chứng | Cách xem và sửa |
 |---|---|
+| Thêm vào giỏ / đặt hàng báo `Uncategorizied exception`, log có `foreign key constraint fails` | MariaDB 13.0.2 của Termux (32-bit) không tạo được bảng có từ 2 khoá ngoại trở lên, và lệnh thêm khoá ngoại của Hibernate để lại khoá hỏng từ chối cả dòng hợp lệ. Vì vậy bộ cài dùng `schema-tablet.sql` (bảng **không có khoá ngoại**) và `JPA_HIBERNATE_DDL_AUTO=none`. Đừng đặt lại `update` trên tab. Khi thêm cột mới ở code, phải chạy tay file migration SQL trên tab (`mariadb -u root identity_service < file.sql`). |
 | Backend không lên, hoặc tự chết | `tail -n 60 ~/tablet-bundle/logs/backend.log`. Nếu thấy `Killed` hoặc không có lỗi gì thì thường là hết RAM: tắt app khác trên tab, hoặc giảm `-Xmx` trong `start-all.sh` (ví dụ `-Xmx256m`). |
 | `Unknown system variable 'transaction_isolation'` hoặc lỗi kết nối DB lạ | Driver MySQL không hợp phiên bản MariaDB. **Gửi mình log**, cách sửa là đổi dự án sang driver MariaDB (cần sửa `pom.xml` và build lại). |
 | `Access denied for user 'shop'` | Mật khẩu trong `.env` và trong MariaDB không khớp. Chạy lại `bash ~/tablet-bundle/termux-setup.sh` (nó đặt lại mật khẩu theo `.env`). |
