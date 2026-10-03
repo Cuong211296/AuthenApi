@@ -184,7 +184,7 @@ Rồi trên PC bật lại như cũ (ngrok, MySQL trong Docker, backend, fronten
 
 | Triệu chứng | Cách xem và sửa |
 |---|---|
-| Backend không lên, hoặc tự chết | `tail -n 60 ~/tablet-bundle/logs/backend.log`. Nếu thấy `Killed` hoặc không có lỗi gì thì thường là hết RAM: tắt app khác trên tab, hoặc giảm `-Xmx` trong `start-all.sh` (ví dụ `-Xmx320m`). |
+| Backend không lên, hoặc tự chết | `tail -n 60 ~/tablet-bundle/logs/backend.log`. Nếu thấy `Killed` hoặc không có lỗi gì thì thường là hết RAM: tắt app khác trên tab, hoặc giảm `-Xmx` trong `start-all.sh` (ví dụ `-Xmx256m`). |
 | `Unknown system variable 'transaction_isolation'` hoặc lỗi kết nối DB lạ | Driver MySQL không hợp phiên bản MariaDB. **Gửi mình log**, cách sửa là đổi dự án sang driver MariaDB (cần sửa `pom.xml` và build lại). |
 | `Access denied for user 'shop'` | Mật khẩu trong `.env` và trong MariaDB không khớp. Chạy lại `bash ~/tablet-bundle/termux-setup.sh` (nó đặt lại mật khẩu theo `.env`). |
 | MariaDB không start | `tail -n 40 ~/tablet-bundle/logs/mariadb.log`. Nếu có file khoá cũ: `rm -f $PREFIX/var/lib/mysql/*.pid` rồi start lại. |

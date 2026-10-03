@@ -7,8 +7,8 @@ mkdir -p logs
 # keeps the CPU awake while the screen is off (also turn off battery optimisation for Termux in Android settings)
 termux-wake-lock 2>/dev/null || true
 
-# Java memory: small heap, one cheap GC, no C2 compiler. Raise -Xmx to 512m if `free -m` shows spare memory.
-JAVA_OPTS="-Xms64m -Xmx400m -Xss512k -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
+# Java memory: small heap, one cheap GC, no C2 compiler. Raise -Xmx to 400m if `free -m` shows spare memory.
+JAVA_OPTS="-Xms64m -Xmx320m -Xss512k -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
 
 if ! mysqladmin ping --silent 2>/dev/null; then
   echo "Starting MariaDB..."
