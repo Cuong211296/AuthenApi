@@ -189,6 +189,7 @@ Rồi trên PC bật lại như cũ (ngrok, MySQL trong Docker, backend, fronten
 | `Access denied for user 'shop'` | Mật khẩu trong `.env` và trong MariaDB không khớp. Chạy lại `bash ~/tablet-bundle/termux-setup.sh` (nó đặt lại mật khẩu theo `.env`). |
 | MariaDB không start | `tail -n 40 ~/tablet-bundle/logs/mariadb.log`. Nếu có file khoá cũ: `rm -f $PREFIX/var/lib/mysql/*.pid` rồi start lại. |
 | ngrok báo `ERR_NGROK_334` hoặc "endpoint already online" | Domain đang chạy ở máy khác (thường là PC). Tắt ngrok bên đó. |
+| `proot warning: signal 6` / `IS_IN_SYSENTER` khi chạy `termux-chroot` | Kernel cũ của tab. Đặt `export PROOT_NO_SECCOMP=1` trước lệnh (script `start-all.sh` đã làm). Chạy tay thì gõ `PROOT_NO_SECCOMP=1 termux-chroot ngrok ...`. |
 | ngrok lỗi DNS, `lookup ... connection refused` | Phải chạy qua `termux-chroot` (script đã làm). Chạy tay thì nhớ thêm `termux-chroot` phía trước. |
 | Mở web từ mạng ngoài ra trang "You are about to visit..." | Đó là trang cảnh báo của ngrok bản miễn phí, khách thật cũng sẽ gặp. Cân nhắc Cloudflare Tunnel hoặc gói ngrok trả phí nếu bán thật. |
 | MoMo không gọi lại được | Kiểm tra `MOMO_IPN_URL` trong `~/tablet-bundle/.env` đúng domain ngrok, rồi `stop-all.sh` và `start-all.sh`. |

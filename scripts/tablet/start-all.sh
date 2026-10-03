@@ -22,13 +22,14 @@ if ! pgrep -f "app.jar" >/dev/null; then
   nohup java $JAVA_OPTS -jar app.jar > logs/backend.log 2>&1 &
 fi
 
-if ! pgrep -x nginx >/dev/null; then
+if ! pgrep -f "nginx: master" >/dev/null; then
   nginx && echo "nginx: up (port 8080)"
 fi
 
 DOMAIN="$(grep -E '^FRONTEND_URL=https://' .env | head -1 | cut -d= -f2- | sed 's#^https://##; s#/.*##')"
 if [ -n "$DOMAIN" ] && ! pgrep -x ngrok >/dev/null; then
   echo "Starting ngrok for $DOMAIN ..."
+  export PROOT_NO_SECCOMP=1   # proot crashes on this old kernel without it
   nohup termux-chroot ngrok http --url="$DOMAIN" 8080 > logs/ngrok.log 2>&1 &
 fi
 
