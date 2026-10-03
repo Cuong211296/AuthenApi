@@ -63,3 +63,6 @@ temp/
 backups/
 
 __pycache__/
+
+### Tablet deploy bundle (contains .env secrets) ###
+tablet-bundle/
