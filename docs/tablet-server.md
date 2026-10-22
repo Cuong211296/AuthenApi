@@ -191,6 +191,7 @@ Rồi trên PC bật lại như cũ (ngrok, MySQL trong Docker, backend, fronten
 | MariaDB không start | `tail -n 40 ~/tablet-bundle/logs/mariadb.log`. Nếu có file khoá cũ: `rm -f $PREFIX/var/lib/mysql/*.pid` rồi start lại. |
 | ngrok báo `ERR_NGROK_334` hoặc "endpoint already online" | Domain đang chạy ở máy khác (thường là PC). Tắt ngrok bên đó. |
 | `proot warning: signal 6` / `IS_IN_SYSENTER` khi chạy `termux-chroot` | Kernel cũ của tab. Đặt `export PROOT_NO_SECCOMP=1` trước lệnh (script `start-all.sh` đã làm). Chạy tay thì gõ `PROOT_NO_SECCOMP=1 termux-chroot ngrok ...`. |
+| Web công khai trả `ERR_NGROK_3200` (offline) dù mọi tiến trình đang chạy | ngrok dưới proot trên tab đôi khi treo trước khi kết nối. `start-all.sh` đã tự thử lại tối đa 5 lần và đặt `SSL_CERT_FILE` + `--region=ap`. Nếu vẫn offline: `pkill -x ngrok` rồi chạy lại `start-all.sh`, xem `logs/ngrok.log` (phải có dòng `started tunnel`). **Không dùng `pkill -f "ngrok ..."` qua SSH**, nó tự giết luôn phiên SSH. |
 | ngrok lỗi DNS, `lookup ... connection refused` | Phải chạy qua `termux-chroot` (script đã làm). Chạy tay thì nhớ thêm `termux-chroot` phía trước. |
 | Mở web từ mạng ngoài ra trang "You are about to visit..." | Đó là trang cảnh báo của ngrok bản miễn phí, khách thật cũng sẽ gặp. Cân nhắc Cloudflare Tunnel hoặc gói ngrok trả phí nếu bán thật. |
 | MoMo không gọi lại được | Kiểm tra `MOMO_IPN_URL` trong `~/tablet-bundle/.env` đúng domain ngrok, rồi `stop-all.sh` và `start-all.sh`. |
@@ -204,3 +205,7 @@ rm -rf ~/tablet-bundle
 pkg uninstall -y mariadb nginx openjdk-17
 rm -rf $PREFIX/var/lib/mysql      # xoá luôn dữ liệu database
 ```
+
+## Sau khi tab tắt (hết pin, quá nhiệt) hoặc khởi động lại
+
+Termux đóng nên không còn gì chạy. Mở Termux, gõ `sshd` (để PC vào được), rồi `bash ~/tablet-bundle/start-all.sh`. IP của tab có thể đổi sau khi khởi động lại (kiểm tra bằng `ip -4 addr show wlan0`), nên đặt IP tĩnh trong router.

@@ -27,10 +27,21 @@ if ! pgrep -f "nginx: master" >/dev/null; then
 fi
 
 DOMAIN="$(grep -E '^FRONTEND_URL=https://' .env | head -1 | cut -d= -f2- | sed 's#^https://##; s#/.*##')"
+start_ngrok() {
+  # on this tablet ngrok (running under proot) sometimes hangs before it connects, so the caller retries
+  export PROOT_NO_SECCOMP=1                 # proot crashes on this old kernel without it
+  export SSL_CERT_FILE=/etc/tls/cert.pem    # inside termux-chroot ngrok finds no CA bundle otherwise (ERR_NGROK_3200)
+  (termux-chroot ngrok http --url="$DOMAIN" --region=ap --log=stdout 8080 > logs/ngrok.log 2>&1 &)
+}
 if [ -n "$DOMAIN" ] && ! pgrep -x ngrok >/dev/null; then
-  echo "Starting ngrok for $DOMAIN ..."
-  export PROOT_NO_SECCOMP=1   # proot crashes on this old kernel without it
-  nohup termux-chroot ngrok http --url="$DOMAIN" 8080 > logs/ngrok.log 2>&1 &
+  for attempt in 1 2 3 4 5; do
+    echo "Starting ngrok for $DOMAIN (attempt $attempt) ..."
+    pkill -x ngrok 2>/dev/null; sleep 1
+    start_ngrok
+    for i in $(seq 1 15); do grep -q "started tunnel" logs/ngrok.log 2>/dev/null && break; sleep 2; done
+    if grep -q "started tunnel" logs/ngrok.log 2>/dev/null; then echo "ngrok: tunnel up"; break; fi
+    echo "ngrok did not connect, retrying"
+  done
 fi
 
 echo "Waiting for the backend (up to 6 minutes)..."
