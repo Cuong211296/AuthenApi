@@ -13,6 +13,9 @@ import { Thumb } from './AdminParts.jsx';
 
 const EMPTY_PRODUCT = { name: '', slug: '', description: '', categoryId: '', basePrice: '', costPrice: '', weightGrams: '', imageUrl: '', active: true };
 const EMPTY_VARIANT = { size: '', color: '', sku: '', stock: '', price: '' };
+const variantBody = (v) => ({
+  size: v.size, color: v.color, sku: v.sku, stock: Number(v.stock), price: v.price === '' ? null : Number(v.price),
+});
 const KEEP_LABEL = { hide: 'Giữ lại', discard: 'Tiếp tục chỉnh sửa' };
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -74,6 +77,9 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
   const returnFocus = useRef(null);
   const prevConfirm = useRef(null);
   const [variant, setVariant] = useState(EMPTY_VARIANT);
+  // Variants entered before the product exists: posted right after "Tạo sản phẩm" (failed ones stay here for "Lưu").
+  const [pending, setPending] = useState([]);
+  const pendingKey = useRef(0);
   const [addErrs, setAddErrs] = useState({});
   const [varErrs, setVarErrs] = useState({});
   const [varError, setVarError] = useState('');
@@ -136,24 +142,25 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     setErrs(found);
     if (Object.keys(found).length) { focusFirstInvalid(bodyRef.current); return; }
     // A half-filled "Thêm biến thể" form is part of what the admin expects "Lưu" to save: check it before writing anything.
-    const withVariant = !editing.isNew && draftFilled();
+    const withVariant = draftFilled();
     if (withVariant) {
       const draftFound = draftErrors();
       setAddErrs(draftFound);
       if (Object.keys(draftFound).length) { focusFirstInvalid(bodyRef.current); return; }
     }
+    const queue = withVariant ? [...pending, { ...variant, key: `p${++pendingKey.current}` }] : pending;
     setError('');
     setBusy('save');
-    let saveOk = false;
+    let savedId = null;
     try {
       const body = productBody(editing);
       const saved = editing.isNew ? await api('POST', '/admin/products', body) : await api('PUT', `/admin/products/${editing.id}`, body);
       const fresh = withOverrides(saved);
       setEditing((prev) => ({ ...fresh, variants: prev.isNew ? fresh.variants : prev.variants }));
       setBaseline((b) => ({ ...b, product: editorSnapshot(fresh).product }));
-      toast('Đã lưu sản phẩm', { tone: 'success' });
+      toast(editing.isNew ? 'Đã tạo sản phẩm' : 'Đã lưu sản phẩm', { tone: 'success' });
       onChanged();
-      saveOk = true;
+      savedId = saved.id;
     } catch (err) {
       setError(err.message);
       // The message sits at the top of the form; the footer button stays visible while the body is scrolled, so
@@ -163,7 +170,36 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     } finally {
       setBusy('');
     }
-    if (saveOk && withVariant) await postVariant();
+    if (savedId && queue.length) {
+      if (withVariant) setVariant(EMPTY_VARIANT);
+      await postQueue(savedId, queue);
+    }
+  }
+
+  // Posts the queued variants one by one; the ones that fail stay queued so "Lưu" can retry them.
+  async function postQueue(productId, queue) {
+    setVarError('');
+    setBusy('add');
+    const failed = [];
+    let message = '';
+    for (const v of queue) {
+      try {
+        await api('POST', `/admin/products/${productId}/variants`, variantBody(v));
+      } catch (err) {
+        failed.push(v);
+        message ||= `${v.size} ${v.color} (${v.sku}): ${err.message}`;
+      }
+    }
+    setPending(failed);
+    setBusy('');
+    if (failed.length) {
+      setVarError(`Chưa lưu được ${failed.length} biến thể. ${message}`);
+      toast(`Chưa lưu được ${failed.length} biến thể`, { tone: 'danger' });
+    }
+    if (failed.length < queue.length) {
+      onChanged(); // the list was refreshed before the variants existed
+      if (await refetchVariants([], null, productId)) toast(`Đã thêm ${queue.length - failed.length} biến thể`, { tone: 'success' });
+    }
   }
 
   async function deactivate() {
@@ -184,9 +220,9 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
 
   // Reloads variants after a successful write. A failed reload must not look like a failed write (a retry would
   // hit a duplicate SKU), so it only warns and keeps the local state.
-  const refetchVariants = async (refreshIds, savedLocal) => {
+  const refetchVariants = async (refreshIds, savedLocal, productId = editing.id) => {
     try {
-      const fresh = await api('GET', `/admin/products/${editing.id}`);
+      const fresh = await api('GET', `/admin/products/${productId}`);
       const serverVariants = fresh.variants || [];
       setEditing((prev) => ({ ...prev, baseline: fresh.basePrice, variants: mergeVariants(prev.variants, serverVariants, fresh.basePrice, refreshIds) }));
       setBaseline((b) => {
@@ -209,6 +245,8 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
   function draftErrors() {
     const found = {};
     for (const key of ['size', 'color', 'sku']) if (!variant[key].trim()) found[key] = 'Bắt buộc';
+    const sku = variant.sku.trim().toLowerCase();
+    if (sku && [...pending, ...(editing.variants || [])].some((v) => v.sku.trim().toLowerCase() === sku)) found.sku = 'SKU đã có';
     const stock = countError(variant.stock, 'Tồn kho');
     if (stock) found.stock = stock;
     const price = optionalCountError(variant.price, 'Giá riêng');
@@ -220,9 +258,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     setVarError('');
     setBusy('add');
     try {
-      await api('POST', `/admin/products/${editing.id}/variants`, {
-        ...variant, stock: Number(variant.stock), price: variant.price === '' ? null : Number(variant.price),
-      });
+      await api('POST', `/admin/products/${editing.id}/variants`, variantBody(variant));
       setVariant(EMPTY_VARIANT);
       if (await refetchVariants([])) toast('Đã thêm biến thể', { tone: 'success' });
     } catch (err) {
@@ -239,6 +275,12 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     const found = draftErrors();
     setAddErrs(found);
     if (Object.keys(found).length) { focusFirstInvalid(form); return; }
+    if (editing.isNew) {
+      // No product id yet: keep it locally, it is posted together with the product.
+      setPending((list) => [...list, { ...variant, key: `p${++pendingKey.current}` }]);
+      setVariant(EMPTY_VARIANT);
+      return;
+    }
     await postVariant();
   }
 
@@ -261,7 +303,7 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
     }
   }
 
-  const dirty = isEditorDirty(baseline, editing) || (!editing?.isNew && draftFilled());
+  const dirty = isEditorDirty(baseline, editing) || draftFilled() || pending.length > 0;
   const busyWriting = busy === 'save' || busy === 'hide';
 
   // Every close path (overlay, Esc, X, "Đóng") comes through here.
@@ -427,73 +469,98 @@ export default function ProductEditor({ open, target, categories, onClose, onCha
               </div>
             </form>
 
-            {!isNew && (
-              <section className="ad-section" aria-labelledby="ad-variants-title">
-                <h3 className="ad-section__title" id="ad-variants-title">Biến thể (size / màu / kho)</h3>
-                {varError && <p className="ad-error" role="alert" style={{ margin: 0 }}>{varError}</p>}
-                {editing.variants.length === 0 ? (
-                  <p className="ad-muted">Chưa có biến thể. Thêm biến thể bên dưới để sản phẩm có thể được mua.</p>
-                ) : (
-                  <>
-                    <div className="ad-varhead" aria-hidden="true">
-                      <span>Size</span><span>Màu</span><span>SKU</span><span>Kho</span><span>Giá riêng</span><span>Bán</span><span />
-                    </div>
-                    <ul className="ad-vars">
-                      {editing.variants.map((v) => {
-                        const ve = varErrs[v.id] || {};
-                        const name = `${v.size} ${v.color}`;
-                        return (
-                          <li key={v.id} className={`ad-var ${v.active ? '' : 'is-off'}`} data-variant={v.id}>
-                            <div className="ad-var__cell ad-var__id ad-strong">{v.size}</div>
-                            <div className="ad-var__cell ad-var__id">{v.color}</div>
-                            <div className="ad-var__cell ad-var__sku">{v.sku}</div>
-                            <div className="ad-var__cell">
-                              <span className="ad-var__lbl">Kho</span>
-                              <input
-                                type="number" min="0" inputMode="numeric" aria-label={`Tồn kho ${name}`}
-                                value={v.stock} aria-invalid={ve.stock ? true : undefined}
-                                aria-describedby={ve.stock || ve.price ? `err-${v.id}` : undefined}
-                                onChange={(e) => patchVariant(v.id, { stock: e.target.value })}
-                              />
-                            </div>
-                            <div className="ad-var__cell">
-                              <span className="ad-var__lbl">Giá riêng</span>
-                              <input
-                                type="number" min="0" inputMode="numeric" aria-label={`Giá riêng ${name}`} placeholder="theo giá gốc"
-                                value={v.priceOverride ?? ''} aria-invalid={ve.price ? true : undefined}
-                                aria-describedby={ve.stock || ve.price ? `err-${v.id}` : undefined}
-                                onChange={(e) => patchVariant(v.id, { priceOverride: e.target.value })}
-                              />
-                            </div>
-                            <div className="ad-var__cell">
-                              <span className="ad-var__lbl">Bán</span>
-                              <Switch checked={v.active} onChange={(on) => patchVariant(v.id, { active: on })} label={`Bán ${name}`} hideLabel />
-                            </div>
-                            <div className="ad-var__cell ad-var__act">
-                              <Button size="sm" variant="ghost" loading={busy === v.id} disabled={busy !== '' && busy !== v.id} onClick={() => saveVariant(v)} aria-label={`Lưu biến thể ${name}`}>Lưu</Button>
-                            </div>
-                            {(ve.stock || ve.price) && <p className="ad-var__err" id={`err-${v.id}`} role="alert">{ve.stock || ve.price}</p>}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </>
-                )}
+            <section className="ad-section" aria-labelledby="ad-variants-title">
+              <h3 className="ad-section__title" id="ad-variants-title">Biến thể (size / màu / kho)</h3>
+              {varError && <p className="ad-error" role="alert" style={{ margin: 0 }}>{varError}</p>}
+              {editing.variants.length === 0 && pending.length === 0 ? (
+                <p className="ad-muted">
+                  {isNew
+                    ? 'Thêm biến thể bên dưới, chúng sẽ được lưu cùng lúc khi bấm "Tạo sản phẩm".'
+                    : 'Chưa có biến thể. Thêm biến thể bên dưới để sản phẩm có thể được mua.'}
+                </p>
+              ) : editing.variants.length === 0 ? null : (
+                <>
+                  <div className="ad-varhead" aria-hidden="true">
+                    <span>Size</span><span>Màu</span><span>SKU</span><span>Kho</span><span>Giá riêng</span><span>Bán</span><span />
+                  </div>
+                  <ul className="ad-vars">
+                    {editing.variants.map((v) => {
+                      const ve = varErrs[v.id] || {};
+                      const name = `${v.size} ${v.color}`;
+                      return (
+                        <li key={v.id} className={`ad-var ${v.active ? '' : 'is-off'}`} data-variant={v.id}>
+                          <div className="ad-var__cell ad-var__id ad-strong">{v.size}</div>
+                          <div className="ad-var__cell ad-var__id">{v.color}</div>
+                          <div className="ad-var__cell ad-var__sku">{v.sku}</div>
+                          <div className="ad-var__cell">
+                            <span className="ad-var__lbl">Kho</span>
+                            <input
+                              type="number" min="0" inputMode="numeric" aria-label={`Tồn kho ${name}`}
+                              value={v.stock} aria-invalid={ve.stock ? true : undefined}
+                              aria-describedby={ve.stock || ve.price ? `err-${v.id}` : undefined}
+                              onChange={(e) => patchVariant(v.id, { stock: e.target.value })}
+                            />
+                          </div>
+                          <div className="ad-var__cell">
+                            <span className="ad-var__lbl">Giá riêng</span>
+                            <input
+                              type="number" min="0" inputMode="numeric" aria-label={`Giá riêng ${name}`} placeholder="theo giá gốc"
+                              value={v.priceOverride ?? ''} aria-invalid={ve.price ? true : undefined}
+                              aria-describedby={ve.stock || ve.price ? `err-${v.id}` : undefined}
+                              onChange={(e) => patchVariant(v.id, { priceOverride: e.target.value })}
+                            />
+                          </div>
+                          <div className="ad-var__cell">
+                            <span className="ad-var__lbl">Bán</span>
+                            <Switch checked={v.active} onChange={(on) => patchVariant(v.id, { active: on })} label={`Bán ${name}`} hideLabel />
+                          </div>
+                          <div className="ad-var__cell ad-var__act">
+                            <Button size="sm" variant="ghost" loading={busy === v.id} disabled={busy !== '' && busy !== v.id} onClick={() => saveVariant(v)} aria-label={`Lưu biến thể ${name}`}>Lưu</Button>
+                          </div>
+                          {(ve.stock || ve.price) && <p className="ad-var__err" id={`err-${v.id}`} role="alert">{ve.stock || ve.price}</p>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
 
-                <form className="ad-addvar" onSubmit={addVariant} noValidate aria-label="Thêm biến thể">
-                  <div className="ad-addvar__grid">
-                    <Field label="Size" value={variant.size} error={addErrs.size} onChange={(e) => setVariant({ ...variant, size: e.target.value })} autoComplete="off" />
-                    <Field label="Màu" value={variant.color} error={addErrs.color} onChange={(e) => setVariant({ ...variant, color: e.target.value })} autoComplete="off" />
-                    <Field label="SKU" value={variant.sku} error={addErrs.sku} onChange={(e) => setVariant({ ...variant, sku: e.target.value })} autoComplete="off" />
-                    <Field label="Kho" type="number" min="0" inputMode="numeric" value={variant.stock} error={addErrs.stock} onChange={(e) => setVariant({ ...variant, stock: e.target.value })} />
-                    <Field label="Giá riêng" optional type="number" min="0" inputMode="numeric" value={variant.price} error={addErrs.price} placeholder="theo giá gốc" onChange={(e) => setVariant({ ...variant, price: e.target.value })} />
-                  </div>
-                  <div className="ad-addvar__foot">
-                    <Button type="submit" variant="dark" size="sm" iconLeft={<PlusIcon size={16} />} loading={busy === 'add'}>Thêm biến thể</Button>
-                  </div>
-                </form>
-              </section>
-            )}
+              {pending.length > 0 && (
+                <>
+                  <p className="ad-muted" style={{ margin: 0 }}>
+                    {isNew ? 'Các biến thể sẽ được lưu khi bấm "Tạo sản phẩm":' : 'Biến thể chưa lưu được (bấm "Lưu" để thử lại):'}
+                  </p>
+                  <ul className="ad-vars" aria-label="Biến thể chờ lưu">
+                    {pending.map((v) => (
+                      <li key={v.key} className="ad-var">
+                        <div className="ad-var__cell ad-var__id ad-strong">{v.size}</div>
+                        <div className="ad-var__cell ad-var__id">{v.color}</div>
+                        <div className="ad-var__cell ad-var__sku">{v.sku}</div>
+                        <div className="ad-var__cell"><span className="ad-var__lbl">Kho</span>{v.stock}</div>
+                        <div className="ad-var__cell"><span className="ad-var__lbl">Giá riêng</span>{v.price === '' ? 'theo giá gốc' : v.price}</div>
+                        <div className="ad-var__cell" />
+                        <div className="ad-var__cell ad-var__act">
+                          <Button size="sm" variant="ghost" disabled={busy !== ''} onClick={() => setPending((list) => list.filter((x) => x.key !== v.key))} aria-label={`Bỏ biến thể ${v.size} ${v.color}`}>Bỏ</Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              <form className="ad-addvar" onSubmit={addVariant} noValidate aria-label="Thêm biến thể">
+                <div className="ad-addvar__grid">
+                  <Field label="Size" value={variant.size} error={addErrs.size} onChange={(e) => setVariant({ ...variant, size: e.target.value })} autoComplete="off" />
+                  <Field label="Màu" value={variant.color} error={addErrs.color} onChange={(e) => setVariant({ ...variant, color: e.target.value })} autoComplete="off" />
+                  <Field label="SKU" value={variant.sku} error={addErrs.sku} onChange={(e) => setVariant({ ...variant, sku: e.target.value })} autoComplete="off" />
+                  <Field label="Kho" type="number" min="0" inputMode="numeric" value={variant.stock} error={addErrs.stock} onChange={(e) => setVariant({ ...variant, stock: e.target.value })} />
+                  <Field label="Giá riêng" optional type="number" min="0" inputMode="numeric" value={variant.price} error={addErrs.price} placeholder="theo giá gốc" onChange={(e) => setVariant({ ...variant, price: e.target.value })} />
+                </div>
+                <div className="ad-addvar__foot">
+                  <Button type="submit" variant="dark" size="sm" iconLeft={<PlusIcon size={16} />} loading={busy === 'add'}>Thêm biến thể</Button>
+                </div>
+              </form>
+            </section>
           </div>
         )}
       </div>
