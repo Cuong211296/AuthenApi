@@ -172,6 +172,10 @@ Design: `docs/superpowers/specs/2026-09-30-clothing-shop-design.md` (see its sec
 
 **Public demo via ngrok (one tunnel):** `ngrok http --url=<your-dev-domain> 5173` exposes only the Vite server; `shop-ui/vite.config.js` proxies `/identity` to the backend (`API_PROXY_TARGET`, default `http://localhost:8081`), drops the tunnel's `Origin` header (backend CORS only whitelists localhost) and allows `*.ngrok-free.dev|app` hosts. Set `shop-ui/.env` `VITE_API_BASE=/identity` and backend `.env` `FRONTEND_URL=https://<domain>` and `MOMO_IPN_URL=https://<domain>/identity/payments/momo/ipn`, then restart both servers. Revert these three values for local development.
 
+## Live server (tablet)
+
+The live shop and its database run on an Android tablet in Termux (guide: `docs/tablet-server.md`). Every finished change must also be deployed there, see "Cập nhật khi code thay đổi" in that guide: frontend-only changes just replace `~/tablet-bundle/web`; backend changes replace `app.jar` (never the bundle's `.env`); schema changes need the migration SQL run by hand on the tablet (`ddl-auto` is `none`, database `identity_service_v2`).
+
 ## Admin statistics
 
 `GET /admin/stats/overview?from=&to=&groupBy=day|month|year` (ADMIN only, dates in `Asia/Ho_Chi_Minh`, defaults to the last 30 days) returns KPIs with their previous-period values, a zero-filled series, status/payment breakdowns, top products and low stock. Revenue = sum of item subtotal (shipping excluded) of orders that are PAID and not CANCELLED, dated by `paidAt`; orders and cancel rate are by `createdAt`; gross profit uses only items with a known cost and comes with a coverage ratio (null when no item has a cost). The page is the first admin screen, "Tổng quan" at `/admin/overview` (`/admin` redirects there): `shop-ui/src/pages/admin/AdminOverview.jsx` with parts in `pages/admin/overview/`, helpers in `utils/stats.js`, charts in `components/charts/` (inline SVG, no chart library). Cost price: the optional "Giá vốn (tuỳ chọn)" field of the admin product editor (`costPrice`, empty = null, never exposed on storefront endpoints); checkout snapshots it into `OrderItem.unitCost`.

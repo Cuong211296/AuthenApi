@@ -170,6 +170,16 @@ scp -P 8022 -r tablet-bundle\web u0_a123@192.168.1.50:~/tablet-bundle/
 ssh -p 8022 u0_a123@192.168.1.50 "bash ~/tablet-bundle/start-all.sh"
 ```
 
+Nếu **chỉ đổi frontend** (`shop-ui/`), không cần build jar hay dừng dịch vụ: nginx phục vụ file tĩnh nên chỉ cần thay thư mục `web`:
+
+```powershell
+cd shop-ui; $env:VITE_API_BASE = '/identity'; npm run build; Remove-Item Env:\VITE_API_BASE
+scp -P 8022 -r dist u0_a123@192.168.1.50:~/tablet-bundle/web.new
+ssh -p 8022 u0_a123@192.168.1.50 "cd ~/tablet-bundle && chmod -R o+rX web.new && rm -rf web.prev && mv web web.prev && mv web.new web"
+```
+
+(`web.prev` giữ bản cũ để quay lại nếu cần.)
+
 Trên tab `ddl-auto` đã tắt (`none`), nên **backend không tự thêm cột**. Khi có migration mới (file `migration_v*.sql`) phải chạy tay trên tab: `scp` file sang rồi `mariadb -u root <tên-database> < file.sql`.
 
 ## Khi cần dừng và quay về PC
