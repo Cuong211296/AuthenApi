@@ -30,7 +30,7 @@ import java.util.Arrays;
 @EnableMethodSecurity
     public class SecurityConfig {
     private final String[] PUBLIC_GET_ENDPOINTS = {"/products/**", "/categories/**", "/shipping/fee", "/shipping/provinces",
-            "/shipping/config", "/shipping/ghn/**"};
+            "/shipping/config", "/shipping/ghn/**","/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**"};
     private final String[] PUBLIC_POST_ENDPOINTS = {"/users",
             "/auth/token",
             "/auth/introspect",
